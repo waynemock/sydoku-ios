@@ -1,7 +1,14 @@
 import SwiftUI
 
+/// A celebratory confetti animation displayed when completing a puzzle.
+///
+/// `ConfettiView` creates an animated burst of colorful circular confetti pieces
+/// that fall and fade out, providing visual feedback for successful game completion.
 struct ConfettiView: View {
+    /// Controls the animation state of the confetti pieces.
     @State private var animate = false
+    
+    /// The colors used for confetti pieces, randomly selected for each piece.
     let colors: [Color] = [.red, .blue, .green, .yellow, .orange, .purple, .pink]
     
     var body: some View {
@@ -24,7 +31,9 @@ struct ConfettiView: View {
     }
 }
 
+/// A single piece of confetti represented as a colored circle.
 struct ConfettiPiece: View {
+    /// The color of this confetti piece.
     let color: Color
     
     var body: some View {

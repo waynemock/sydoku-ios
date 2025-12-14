@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		B04C34F72EEF773000F59C4F /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = B04C34F62EEF773000F59C4F /* LICENSE */; };
+		B04C34F92EEF7B8000F59C4F /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = B04C34F82EEF7B8000F59C4F /* README.md */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B0C27A092EEF2D9100D4B294 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -24,6 +29,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B04C34F62EEF773000F59C4F /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
+		B04C34F82EEF7B8000F59C4F /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		B0C279F72EEF2D9000D4B294 /* Sydoku.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sydoku.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0C27A082EEF2D9100D4B294 /* SydokuTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SydokuTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0C27A122EEF2D9100D4B294 /* SydokuUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SydokuUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -92,6 +99,8 @@
 				B0C27A0B2EEF2D9100D4B294 /* SydokuTests */,
 				B0C27A152EEF2D9100D4B294 /* SydokuUITests */,
 				B0C279F82EEF2D9000D4B294 /* Products */,
+				B04C34F62EEF773000F59C4F /* LICENSE */,
+				B04C34F82EEF7B8000F59C4F /* README.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -225,6 +234,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B04C34F92EEF7B8000F59C4F /* README.md in Resources */,
+				B04C34F72EEF773000F59C4F /* LICENSE in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

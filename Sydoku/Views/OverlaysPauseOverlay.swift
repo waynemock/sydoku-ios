@@ -1,6 +1,11 @@
 import SwiftUI
 
+/// An overlay displayed when the game is paused.
+///
+/// Shows a semi-transparent overlay with a pause icon, elapsed time,
+/// and a button to resume the game.
 struct PauseOverlay: View {
+    /// The Sudoku game instance.
     @ObservedObject var game: SudokuGame
     
     var body: some View {

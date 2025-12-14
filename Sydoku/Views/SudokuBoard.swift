@@ -1,6 +1,12 @@
 import SwiftUI
 
+/// A view that displays the 9x9 Sudoku game board.
+///
+/// `SudokuBoard` renders the complete grid of cells with proper borders
+/// to delineate the 3x3 boxes. Each cell displays its value, notes,
+/// and visual states (selected, highlighted, conflicts, etc.).
 struct SudokuBoard: View {
+    /// The Sudoku game instance managing the board state.
     @ObservedObject var game: SudokuGame
     
     var body: some View {

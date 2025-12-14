@@ -1,10 +1,24 @@
 import SwiftUI
 
+/// The main view of the Sudoku application.
+///
+/// `ContentView` coordinates the game interface, displaying the Sudoku board,
+/// controls, number pad, and various overlays (pause, game over, confetti).
+/// It also manages sheets for statistics and settings.
 struct ContentView: View {
+    /// The game instance managing puzzle state and logic.
     @StateObject private var game = SudokuGame()
+    
+    /// Whether the difficulty picker dialog is showing.
     @State private var showingDifficultyPicker = false
+    
+    /// Whether the statistics sheet is showing.
     @State private var showingStats = false
+    
+    /// Whether the settings sheet is showing.
     @State private var showingSettings = false
+    
+    /// Whether the continue game alert is showing.
     @State private var showingContinueAlert = false
     
     var body: some View {
@@ -98,7 +112,12 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Header View 
+    // MARK: - Header View
+    
+    /// The header section containing app title, timer, and action buttons.
+    ///
+    /// Displays the app name, daily challenge indicator, timer with pause button,
+    /// and buttons for settings, statistics, undo, and redo.
     private var headerView: some View {
         HStack {
             Text("Sydoku")
@@ -174,6 +193,11 @@ struct ContentView: View {
     }
     
     // MARK: - Game Controls View
+    
+    /// The game controls section with pencil mode, auto-fill notes, and new game buttons.
+    ///
+    /// Provides toggles for pencil mode (notes), auto-filling candidate notes,
+    /// and options to start a new game or daily challenge.
     private var gameControlsView: some View {
         HStack {
             Button(action: { game.isPencilMode.toggle() }) {
@@ -269,6 +293,11 @@ struct ContentView: View {
     }
     
     // MARK: - Status View
+    
+    /// The status section displaying hint messages and mistake counter.
+    ///
+    /// Shows active hint information (region, number, or cell) and the current
+    /// number of mistakes with optional limit.
     private var statusView: some View {
         Group {
             if let region = game.hintRegion {

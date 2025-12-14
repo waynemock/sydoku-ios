@@ -8,8 +8,16 @@
 import SwiftUI
 import SwiftData
 
+/// The main entry point for the Sydoku application.
+///
+/// This app provides a Sudoku game experience with SwiftData persistence
+/// for storing game history and statistics.
 @main
 struct SydokuApp: App {
+    /// The shared model container for SwiftData persistence.
+    ///
+    /// Configures the data schema and storage location for the app's persistent data.
+    /// If the container cannot be created, the app will terminate with a fatal error.
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             Item.self,
@@ -29,6 +37,7 @@ struct SydokuApp: App {
         }
         .modelContainer(sharedModelContainer)
         #if os(macOS)
+        // Configure window appearance for macOS
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 800, height: 900)
         #endif
