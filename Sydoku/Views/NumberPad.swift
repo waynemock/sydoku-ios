@@ -1,10 +1,16 @@
 import SwiftUI
 
+/// A number input pad for entering values into the Sudoku grid.
+///
+/// The number pad displays buttons 1-9 with usage counts, plus a delete button
+/// to clear cells. Numbers that have been used 9 times are disabled.
 struct NumberPad: View {
+    /// The Sudoku game instance that manages the puzzle state.
     @ObservedObject var game: SudokuGame
     
     var body: some View {
         VStack(spacing: 12) {
+            // First row: numbers 1-5
             HStack(spacing: 12) {
                 ForEach(1...5, id: \.self) { num in
                     NumberButton(
@@ -19,6 +25,7 @@ struct NumberPad: View {
                 }
             }
             
+            // Second row: numbers 6-9 and delete button
             HStack(spacing: 12) {
                 ForEach(6...9, id: \.self) { num in
                     NumberButton(
@@ -32,6 +39,7 @@ struct NumberPad: View {
                     )
                 }
                 
+                // Delete button
                 Button(action: {
                     game.clearCell()
                     game.highlightedNumber = nil
@@ -50,10 +58,21 @@ struct NumberPad: View {
     }
 }
 
+/// A button representing a single number (1-9) in the number pad.
+///
+/// Displays the number and its usage count, and becomes disabled when
+/// all 9 instances of the number have been placed on the grid.
 struct NumberButton: View {
+    /// The number this button represents (1-9).
     let number: Int
+    
+    /// How many times this number has been placed on the grid.
     let count: Int
+    
+    /// Whether this number is currently highlighted in the grid.
     let isHighlighted: Bool
+    
+    /// The action to perform when the button is tapped.
     let action: () -> Void
     
     var body: some View {
@@ -62,6 +81,7 @@ struct NumberButton: View {
                 Text("\(number)")
                     .font(.system(size: 28, weight: .semibold))
                 if count > 0 {
+                    // Show usage count
                     Text("\(count)/9")
                         .font(.system(size: 10))
                         .opacity(0.7)
@@ -73,6 +93,6 @@ struct NumberButton: View {
             .foregroundColor(.white)
             .cornerRadius(10)
         }
-        .disabled(count == 9)
+        .disabled(count == 9) // Disable when all instances are used
     }
 }

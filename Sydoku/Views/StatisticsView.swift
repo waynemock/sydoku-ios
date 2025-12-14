@@ -1,12 +1,20 @@
 import SwiftUI
 
+/// A view displaying game statistics and performance metrics.
+///
+/// Shows overall statistics (streaks), per-difficulty stats (games played/completed,
+/// best times, average times), and provides an option to reset statistics.
 struct StatisticsView: View {
+    /// The Sudoku game instance containing the statistics data.
     @ObservedObject var game: SudokuGame
+    
+    /// Environment value for dismissing the statistics sheet.
     @Environment(\.presentationMode) var presentationMode
     
     var body: some View {
         NavigationView {
             Form {
+                // MARK: - Overall Statistics
                 Section(header: Text("Overall Stats")) {
                     HStack {
                         Text("Current Streak")
@@ -25,6 +33,7 @@ struct StatisticsView: View {
                     }
                 }
                 
+                // MARK: - Per-Difficulty Statistics
                 ForEach(Difficulty.allCases, id: \.self) { difficulty in
                     Section(header: Text(difficulty.name)) {
                         HStack {
@@ -62,6 +71,7 @@ struct StatisticsView: View {
                     }
                 }
                 
+                // MARK: - Reset Statistics
                 Section {
                     Button(action: {
                         game.resetStats()
@@ -89,6 +99,10 @@ struct StatisticsView: View {
         #endif
     }
     
+    /// Formats a time interval as a human-readable string.
+    ///
+    /// - Parameter time: The time interval in seconds.
+    /// - Returns: A formatted string in "HH:MM:SS" or "M:SS" format.
     private func formatTime(_ time: TimeInterval) -> String {
         let hours = Int(time) / 3600
         let minutes = Int(time) / 60 % 60

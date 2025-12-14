@@ -2,45 +2,124 @@ import Foundation
 import Foundation
 import Combine
 
+/// The main game controller for Sudoku gameplay.
+///
+/// `SudokuGame` manages all aspects of the Sudoku game including the board state,
+/// puzzle generation, user interactions, timer, statistics, undo/redo, hints,
+/// daily challenges, and game settings.
 class SudokuGame: ObservableObject {
+    // MARK: - Published Properties
+    
+    /// The current state of the game board (9x9 grid).
     @Published var board: [[Int]]
+    
+    /// Pencil mark notes for each cell (9x9 grid of sets).
     @Published var notes: [[Set<Int>]]
+    
+    /// The solution to the current puzzle (9x9 grid).
     @Published var solution: [[Int]]
+    
+    /// The initial puzzle state with given numbers (9x9 grid).
     @Published var initialBoard: [[Int]]
+    
+    /// The currently selected cell coordinates, or `nil` if no cell is selected.
     @Published var selectedCell: (row: Int, col: Int)?
+    
+    /// Whether the puzzle has been completed successfully.
     @Published var isComplete = false
+    
+    /// Whether the current board has any rule violations.
     @Published var hasError = false
+    
+    /// Whether a new puzzle is currently being generated.
     @Published var isGenerating = false
+    
+    /// Whether pencil mode is active for entering notes.
     @Published var isPencilMode = false
+    
+    /// The number currently highlighted on the board, or `nil` if none.
     @Published var highlightedNumber: Int?
+    
+    /// The elapsed time for the current game in seconds.
     @Published var elapsedTime: TimeInterval = 0
+    
+    /// Statistics tracking performance across games.
     @Published var stats = GameStats()
+    
+    /// Whether a saved game exists that can be resumed.
     @Published var hasSavedGame = false
+    
+    /// Whether the game is currently paused.
     @Published var isPaused = false
+    
+    /// The number of mistakes made in the current game.
     @Published var mistakes = 0
+    
+    /// Whether the game has ended (e.g., reached mistake limit).
     @Published var isGameOver = false
+    
+    /// Game settings and preferences.
     @Published var settings = GameSettings()
+    
+    /// The coordinates of the most recently placed number.
     @Published var lastPlacedCell: (row: Int, col: Int)?
+    
+    /// Whether to show the confetti celebration animation.
     @Published var showConfetti = false
+    
+    /// The current hint level selected by the user.
     @Published var currentHintLevel: HintLevel = .showRegion
+    
+    /// The region identifier for the current hint (e.g., "row 3").
     @Published var hintRegion: String?
+    
+    /// The number revealed by the current hint.
     @Published var hintNumber: Int?
+    
+    /// The cell coordinates highlighted by the current hint.
     @Published var hintCell: (row: Int, col: Int)?
+    
+    /// Whether the current game is a daily challenge.
     @Published var isDailyChallenge = false
+    
+    /// Whether today's daily challenge has been completed.
     @Published var dailyChallengeCompleted = false
+    
+    /// Triggers haptic feedback for errors when toggled.
     @Published var triggerErrorHaptic = false
+    
+    /// Triggers haptic feedback for successful actions when toggled.
     @Published var triggerSuccessHaptic = false
     
+    // MARK: - Private Properties
+    
+    /// Stack of previous game states for undo functionality.
     private var undoStack: [GameState] = []
+    
+    /// Stack of undone game states for redo functionality.
     private var redoStack: [GameState] = []
+    
+    /// Maximum number of undo steps to maintain.
     private let maxUndoSteps = 50
+    
+    /// Timer for tracking elapsed game time.
     private var timer: Timer?
+    
+    /// The difficulty level of the current puzzle.
     private var currentDifficulty: Difficulty = .medium
+    
+    /// The date and time when the current game started.
     private var gameStartDate = Date()
     
+    // MARK: - Computed Properties
+    
+    /// Whether an undo operation is available.
     var canUndo: Bool { !undoStack.isEmpty }
+    
+    /// Whether a redo operation is available.
     var canRedo: Bool { !redoStack.isEmpty }
     
+    /// The elapsed time formatted as a string (HH:MM:SS or MM:SS).
     var formattedTime: String {
         let hours = Int(elapsedTime) / 3600
         let minutes = Int(elapsedTime) / 60 % 60
@@ -53,6 +132,7 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    /// The mistakes counter formatted as a string with optional limit.
     var mistakesText: String {
         if settings.mistakeLimit == 0 {
             return "Mistakes: \(mistakes)"
@@ -61,6 +141,11 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    // MARK: - Initialization
+    
+    /// Initializes a new Sudoku game with empty boards.
+    ///
+    /// Loads saved statistics, settings, and checks for a saved game to resume.
     init() {
         board = Array(repeating: Array(repeating: 0, count: 9), count: 9)
         notes = Array(repeating: Array(repeating: Set<Int>(), count: 9), count: 9)
@@ -72,6 +157,8 @@ class SudokuGame: ObservableObject {
     }
     
     // MARK: - Settings
+    
+    /// Loads game settings from persistent storage.
     private func loadSettings() {
         if let data = UserDefaults.standard.data(forKey: "gameSettings"),
            let loaded = try? JSONDecoder().decode(GameSettings.self, from: data) {
@@ -79,6 +166,7 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    /// Saves current game settings to persistent storage.
     func saveSettings() {
         if let encoded = try? JSONEncoder().encode(settings) {
             UserDefaults.standard.set(encoded, forKey: "gameSettings")
@@ -86,6 +174,8 @@ class SudokuGame: ObservableObject {
     }
     
     // MARK: - Timer Management
+    
+    /// Starts the game timer, updating elapsed time every second.
     private func startTimer() {
         stopTimer()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
@@ -94,16 +184,19 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    /// Stops the game timer.
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
     }
     
+    /// Pauses the game timer.
     func pauseTimer() {
         stopTimer()
         isPaused = true
     }
     
+    /// Resumes the game timer if the game is in progress.
     func resumeTimer() {
         if !isComplete && !isGenerating && !isGameOver {
             startTimer()
@@ -111,6 +204,7 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    /// Toggles between paused and running states.
     func togglePause() {
         if isPaused {
             resumeTimer()
@@ -233,6 +327,14 @@ class SudokuGame: ObservableObject {
     }
     
     // MARK: - Puzzle Generation
+    /// Generates a new Sudoku puzzle with the specified difficulty.
+    ///
+    /// Creates a complete solution, then removes numbers to create the puzzle.
+    /// Generation happens asynchronously on a background thread.
+    ///
+    /// - Parameters:
+    ///   - difficulty: The difficulty level, which determines how many cells to remove.
+    ///   - seed: An optional seed for deterministic puzzle generation (used for daily challenges).
     func generatePuzzle(difficulty: Difficulty, seed: Int? = nil) {
         stopTimer()
         isGenerating = true
@@ -263,6 +365,14 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    /// Finalizes puzzle generation by updating all game state.
+    ///
+    /// Resets the game state, statistics, and starts the timer.
+    ///
+    /// - Parameters:
+    ///   - solution: The complete solution grid.
+    ///   - board: The puzzle grid with cells removed.
+    ///   - difficulty: The difficulty level of the puzzle.
     private func finalizePuzzleGeneration(solution: [[Int]], board: [[Int]], difficulty: Difficulty) {
         self.solution = solution
         self.board = board
@@ -473,6 +583,13 @@ class SudokuGame: ObservableObject {
     }
     
     // MARK: - Game Actions
+    
+    /// Sets a number in the currently selected cell.
+    ///
+    /// In pencil mode, toggles the number as a note. Otherwise, places the number
+    /// and checks for errors if auto error checking is enabled.
+    ///
+    /// - Parameter num: The number (1-9) to set.
     func setNumber(_ num: Int) {
         guard let cell = selectedCell else { return }
         if initialBoard[cell.row][cell.col] == 0 {
@@ -510,6 +627,7 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    /// Clears the value and notes from the currently selected cell.
     func clearCell() {
         guard let cell = selectedCell else { return }
         if initialBoard[cell.row][cell.col] == 0 {
@@ -521,6 +639,10 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    /// Automatically fills all empty cells with possible candidate notes.
+    ///
+    /// For each empty cell, adds notes for all numbers that don't violate
+    /// Sudoku rules in the cell's row, column, and 3x3 box.
     func autoFillNotes() {
         saveState()
         for r in 0..<9 {
@@ -537,6 +659,7 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    /// Checks if the puzzle has been completed successfully.
     func checkCompletion() {
         for row in board {
             if row.contains(0) {
