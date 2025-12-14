@@ -28,5 +28,9 @@ struct SydokuApp: App {
             ContentView()
         }
         .modelContainer(sharedModelContainer)
+        #if os(macOS)
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: 800, height: 900)
+        #endif
     }
 }
