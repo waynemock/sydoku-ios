@@ -11,6 +11,9 @@ struct StatisticsView: View {
     /// Environment value for dismissing the statistics sheet.
     @Environment(\.presentationMode) var presentationMode
     
+    /// Environment theme.
+    @Environment(\.theme) var theme
+    
     /// Whether the reset confirmation alert is showing.
     @State private var showingResetConfirmation = false
     
@@ -18,58 +21,74 @@ struct StatisticsView: View {
         NavigationView {
             Form {
                 // MARK: - Overall Statistics
-                Section(header: Text("Overall Stats")) {
+                Section(header: Text("Overall Stats")
+                    .foregroundColor(theme.primaryAccent)
+                    .fontWeight(.semibold)) {
                     HStack {
                         Text("Current Streak")
+                            .foregroundColor(theme.primaryText)
                         Spacer()
                         Text("\(game.stats.currentStreak)")
-                            .foregroundColor(.orange)
+                            .foregroundColor(theme.warningColor)
                             .fontWeight(.semibold)
                     }
+                    .listRowBackground(theme.cellBackgroundColor)
                     
                     HStack {
                         Text("Best Streak")
+                            .foregroundColor(theme.primaryText)
                         Spacer()
                         Text("\(game.stats.bestStreak)")
-                            .foregroundColor(.orange)
+                            .foregroundColor(theme.warningColor)
                             .fontWeight(.semibold)
                     }
+                    .listRowBackground(theme.cellBackgroundColor)
                 }
                 
                 // MARK: - Per-Difficulty Statistics
                 ForEach(Difficulty.allCases, id: \.self) { difficulty in
-                    Section(header: Text(difficulty.name)) {
+                    Section(header: Text(difficulty.name)
+                        .foregroundColor(theme.primaryAccent)
+                        .fontWeight(.semibold)) {
                         HStack {
                             Text("Games Played")
+                                .foregroundColor(theme.primaryText)
                             Spacer()
                             Text("\(game.stats.gamesPlayed[difficulty.rawValue] ?? 0)")
-                                .foregroundColor(.secondary)
+                                .foregroundColor(theme.secondaryText)
                         }
+                        .listRowBackground(theme.cellBackgroundColor)
                         
                         HStack {
                             Text("Games Completed")
+                                .foregroundColor(theme.primaryText)
                             Spacer()
                             Text("\(game.stats.gamesCompleted[difficulty.rawValue] ?? 0)")
-                                .foregroundColor(.green)
+                                .foregroundColor(theme.successColor)
                         }
+                        .listRowBackground(theme.cellBackgroundColor)
                         
                         if let bestTime = game.stats.bestTimes[difficulty.rawValue] {
                             HStack {
                                 Text("Best Time")
+                                    .foregroundColor(theme.primaryText)
                                 Spacer()
                                 Text(formatTime(bestTime))
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(theme.primaryAccent)
                                     .fontWeight(.medium)
                             }
+                            .listRowBackground(theme.cellBackgroundColor)
                         }
                         
                         if let avgTime = game.stats.averageTime(for: difficulty.rawValue) {
                             HStack {
                                 Text("Average Time")
+                                    .foregroundColor(theme.primaryText)
                                 Spacer()
                                 Text(formatTime(avgTime))
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(theme.secondaryText)
                             }
+                            .listRowBackground(theme.cellBackgroundColor)
                         }
                     }
                 }
@@ -82,18 +101,26 @@ struct StatisticsView: View {
                         HStack {
                             Spacer()
                             Text("Reset Statistics")
-                                .foregroundColor(.red)
+                                .foregroundColor(theme.errorColor)
                             Spacer()
                         }
                     }
+                    .listRowBackground(theme.cellBackgroundColor)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(theme.backgroundColor)
             .navigationTitle("Statistics")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(theme.primaryAccent, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         presentationMode.wrappedValue.dismiss()
                     }
+                    .foregroundColor(.white)
                 }
             }
             .alert(isPresented: $showingResetConfirmation) {

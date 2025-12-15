@@ -9,7 +9,7 @@ struct GameOverOverlay: View {
     @ObservedObject var game: SudokuGame
     
     /// Binding to control the difficulty picker display.
-    @Binding var showingDifficultyPicker: Bool
+    @Binding var showingNewGamePicker: Bool
     
     /// Environment theme.
     @Environment(\.theme) var theme
@@ -61,7 +61,7 @@ struct GameOverOverlay: View {
                 
                 Button(action: {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                        showingDifficultyPicker = true
+                        showingNewGamePicker = true
                     }
                 }) {
                     HStack(spacing: 12) {

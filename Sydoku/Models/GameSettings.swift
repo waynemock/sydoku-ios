@@ -9,7 +9,7 @@ struct GameSettings: Codable {
     ///
     /// When enabled, incorrect placements are immediately detected and count toward
     /// the mistake limit. When disabled, errors are only revealed when the puzzle is completed.
-    var autoErrorChecking: Bool = true
+    var autoErrorChecking: Bool = false
     
     /// The maximum number of mistakes allowed before game over.
     ///
@@ -39,6 +39,12 @@ struct GameSettings: Codable {
     /// Used to track whether today's daily challenge has already been completed
     /// and prevent duplicate completions.
     var lastDailyPuzzleDate: String = ""
+    
+    /// The difficulty level for daily challenges: "easy", "medium", or "hard".
+    ///
+    /// Users can choose their preferred difficulty level for daily challenges.
+    /// Defaults to "medium" for a balanced experience.
+    var dailyChallengeDifficulty: String = "medium"
     
     /// The selected theme type for the app.
     var themeType: String = "Classic"

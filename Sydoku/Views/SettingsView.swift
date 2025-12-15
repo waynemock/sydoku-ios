@@ -21,7 +21,9 @@ struct SettingsView: View {
         NavigationView {
             Form {
                 // MARK: - Appearance Settings
-                Section(header: Text("Appearance")) {
+                Section(header: Text("Appearance")
+                    .foregroundColor(theme.primaryAccent)
+                    .fontWeight(.semibold)) {
                     Picker("Theme", selection: Binding(
                         get: { theme.type },
                         set: { newValue in
@@ -34,6 +36,9 @@ struct SettingsView: View {
                             Text(themeType.displayName).tag(themeType)
                         }
                     }
+                    .foregroundColor(theme.primaryText)
+                    .tint(theme.primaryAccent)
+                    .listRowBackground(theme.cellBackgroundColor)
                     
                     Picker("Color Scheme", selection: Binding(
                         get: { game.settings.preferredColorScheme },
@@ -56,22 +61,31 @@ struct SettingsView: View {
                         Text("Light").tag("light")
                         Text("Dark").tag("dark")
                     }
+                    .foregroundColor(theme.primaryText)
+                    .tint(theme.primaryAccent)
+                    .listRowBackground(theme.cellBackgroundColor)
                     
                     // Theme Preview
                     HStack(spacing: 12) {
-                        ThemePreviewBox(color: theme.primaryAccent, label: "Primary")
-                        ThemePreviewBox(color: theme.secondaryAccent, label: "Secondary")
-                        ThemePreviewBox(color: theme.cellBackgroundColor, label: "Cells")
+                        ThemePreviewBox(color: theme.primaryAccent, label: "Primary", theme: theme)
+                        ThemePreviewBox(color: theme.secondaryAccent, label: "Secondary", theme: theme)
+                        ThemePreviewBox(color: theme.cellBackgroundColor, label: "Cells", theme: theme)
                     }
                     .padding(.vertical, 8)
+                    .listRowBackground(theme.cellBackgroundColor)
                 }
                 
                 // MARK: - Gameplay Settings
-                Section(header: Text("Gameplay")) {
+                Section(header: Text("Gameplay")
+                    .foregroundColor(theme.primaryAccent)
+                    .fontWeight(.semibold)) {
                     Toggle("Auto Error Checking", isOn: $game.settings.autoErrorChecking)
                         .onChange(of: game.settings.autoErrorChecking) {
                             game.saveSettings()
                         }
+                        .foregroundColor(theme.primaryText)
+                        .tint(theme.primaryAccent)
+                        .listRowBackground(theme.cellBackgroundColor)
                     
                     Picker("Mistake Limit", selection: $game.settings.mistakeLimit) {
                         Text("Unlimited").tag(0)
@@ -82,42 +96,53 @@ struct SettingsView: View {
                     .onChange(of: game.settings.mistakeLimit) {
                         game.saveSettings()
                     }
+                    .foregroundColor(theme.primaryText)
+                    .tint(theme.primaryAccent)
+                    .listRowBackground(theme.cellBackgroundColor)
                     
                     Toggle("Highlight Same Numbers", isOn: $game.settings.highlightSameNumbers)
                         .onChange(of: game.settings.highlightSameNumbers) {
                             game.saveSettings()
                         }
+                        .foregroundColor(theme.primaryText)
+                        .tint(theme.primaryAccent)
+                        .listRowBackground(theme.cellBackgroundColor)
                 }
                 
                 // MARK: - Feedback Settings
-                Section(header: Text("Feedback")) {
+                Section(header: Text("Feedback")
+                    .foregroundColor(theme.primaryAccent)
+                    .fontWeight(.semibold)) {
                     Toggle("Haptic Feedback", isOn: $game.settings.hapticFeedback)
                         .onChange(of: game.settings.hapticFeedback) {
                             game.saveSettings()
                         }
+                        .foregroundColor(theme.primaryText)
+                        .tint(theme.primaryAccent)
+                        .listRowBackground(theme.cellBackgroundColor)
                     
                     Toggle("Sound Effects", isOn: $game.settings.soundEffects)
                         .onChange(of: game.settings.soundEffects) {
                             game.saveSettings()
                         }
-                }
-                
-                // MARK: - About Section
-                Section(header: Text("About")) {
-                    HStack {
-                        Text("Version")
-                        Spacer()
-                        Text("1.0")
-                            .foregroundColor(.secondary)
-                    }
+                        .foregroundColor(theme.primaryText)
+                        .tint(theme.primaryAccent)
+                        .listRowBackground(theme.cellBackgroundColor)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(theme.backgroundColor)
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(theme.primaryAccent, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         presentationMode.wrappedValue.dismiss()
                     }
+                    .foregroundColor(.white)
                 }
             }
         }
@@ -126,10 +151,18 @@ struct SettingsView: View {
         #endif
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    SettingsView(game: SudokuGame(), theme: .constant(Theme(type: .ocean, colorScheme: .dark)))
+}
+
 /// A preview box showing a theme color with label.
 struct ThemePreviewBox: View {
     let color: Color
     let label: String
+    let theme: Theme
     
     var body: some View {
         VStack(spacing: 4) {
@@ -138,11 +171,11 @@ struct ThemePreviewBox: View {
                 .frame(height: 50)
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.primary.opacity(0.2), lineWidth: 1)
+                        .stroke(theme.primaryText.opacity(0.2), lineWidth: 1)
                 )
             Text(label)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(theme.secondaryText)
         }
     }
 }

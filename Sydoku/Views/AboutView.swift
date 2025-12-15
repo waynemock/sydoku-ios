@@ -10,28 +10,33 @@ struct AboutView: View {
     /// Environment theme.
     @Environment(\.theme) var theme
     
+    /// The app version from the bundle.
+    private var appVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        
+        if let build = build, build != version {
+            return "\(version) (\(build))"
+        }
+        return version
+    }
+    
     var body: some View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 30) {
                     // App Icon and Name
                     VStack(spacing: 16) {
-                        Image(systemName: "square.grid.3x3.fill")
-                            .font(.system(size: 80))
-                            .foregroundStyle(
-                                .linearGradient(
-                                    colors: [theme.primaryAccent, theme.secondaryAccent],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                        // Custom 3x3 Sudoku grid with numbers
+                        MiniSudokuGrid()
+                            .frame(width: 100, height: 100)
                         
                         Text("Sydoku")
                             .font(.largeTitle)
                             .fontWeight(.bold)
                             .foregroundColor(theme.primaryText)
                         
-                        Text("Version 1.0")
+                        Text("Version \(appVersion)")
                             .font(.subheadline)
                             .foregroundColor(theme.secondaryText)
                     }
@@ -103,32 +108,15 @@ struct AboutView: View {
             }
         }
         #if os(macOS)
-        .frame(minWidth: 500, minHeight: 600)
+        .frame(minWidth: 800, minHeight: 1000)
         #endif
     }
 }
 
-/// A row displaying a feature with an icon and description.
-struct FeatureRow: View {
-    let icon: String
-    let text: String
-    let color: Color
-    
-    /// Environment theme.
-    @Environment(\.theme) var theme
-    
-    var body: some View {
-        HStack(spacing: 16) {
-            Image(systemName: icon)
-                .font(.title2)
-                .foregroundColor(color)
-                .frame(width: 32)
-            
-            Text(text)
-                .font(.body)
-                .foregroundColor(theme.primaryText)
-            
-            Spacer()
-        }
-    }
+// MARK: - Preview
+
+#Preview {
+    AboutView()
+        .environment(\.theme, Theme(type: .sunset, colorScheme: .dark))
 }
+

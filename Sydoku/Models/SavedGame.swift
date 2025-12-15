@@ -50,4 +50,16 @@ struct SavedGame: Codable {
     /// Preserved to maintain accurate mistake tracking across save/load cycles,
     /// especially important when a mistake limit is configured.
     var mistakes: Int
+    
+    /// Whether this is a daily challenge game.
+    ///
+    /// Indicates if the saved game is from a daily challenge puzzle,
+    /// which affects UI display and completion tracking.
+    var isDailyChallenge: Bool
+    
+    /// The date string for the daily challenge (if applicable).
+    ///
+    /// Format: "yyyy-MM-dd". Used to determine if the saved daily challenge
+    /// is still valid or has expired.
+    var dailyChallengeDate: String?
 }
