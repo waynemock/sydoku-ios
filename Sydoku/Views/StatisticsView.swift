@@ -11,6 +11,9 @@ struct StatisticsView: View {
     /// Environment value for dismissing the statistics sheet.
     @Environment(\.presentationMode) var presentationMode
     
+    /// Whether the reset confirmation alert is showing.
+    @State private var showingResetConfirmation = false
+    
     var body: some View {
         NavigationView {
             Form {
@@ -74,7 +77,7 @@ struct StatisticsView: View {
                 // MARK: - Reset Statistics
                 Section {
                     Button(action: {
-                        game.resetStats()
+                        showingResetConfirmation = true
                     }) {
                         HStack {
                             Spacer()
@@ -92,6 +95,16 @@ struct StatisticsView: View {
                         presentationMode.wrappedValue.dismiss()
                     }
                 }
+            }
+            .alert(isPresented: $showingResetConfirmation) {
+                Alert(
+                    title: Text("Reset Statistics?"),
+                    message: Text("This will permanently delete all your game statistics, including streaks, completion times, and game counts. This action cannot be undone."),
+                    primaryButton: .destructive(Text("Reset")) {
+                        game.resetStats()
+                    },
+                    secondaryButton: .cancel()
+                )
             }
         }
         #if os(macOS)

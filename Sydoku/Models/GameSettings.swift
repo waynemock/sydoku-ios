@@ -39,5 +39,11 @@ struct GameSettings: Codable {
     /// Used to track whether today's daily challenge has already been completed
     /// and prevent duplicate completions.
     var lastDailyPuzzleDate: String = ""
+    
+    /// The selected theme type for the app.
+    var themeType: String = "Classic"
+    
+    /// The preferred color scheme: "light", "dark", or "system".
+    var preferredColorScheme: String = "dark"
 }
 
