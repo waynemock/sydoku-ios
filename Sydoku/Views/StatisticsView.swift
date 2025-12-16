@@ -11,62 +11,163 @@ struct StatisticsView: View {
     /// Environment value for dismissing the statistics sheet.
     @Environment(\.presentationMode) var presentationMode
     
+    /// Environment theme.
+    @Environment(\.theme) var theme
+    
+    /// Whether the reset confirmation alert is showing.
+    @State private var showingResetConfirmation = false
+    
     var body: some View {
         NavigationView {
             Form {
-                // MARK: - Overall Statistics
-                Section(header: Text("Overall Stats")) {
+                // MARK: - Daily Challenge Statistics
+                Section(header: Text("Daily Challenges")
+                    .foregroundColor(theme.primaryAccent)
+                    .fontWeight(.semibold)) {
                     HStack {
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(theme.warningColor)
                         Text("Current Streak")
+                            .foregroundColor(theme.primaryText)
                         Spacer()
-                        Text("\(game.stats.currentStreak)")
-                            .foregroundColor(.orange)
+                        Text("\(game.stats.dailyChallengeStats.currentDailyStreak) days")
+                            .foregroundColor(theme.warningColor)
                             .fontWeight(.semibold)
                     }
+                    .listRowBackground(theme.cellBackgroundColor)
+                    
+                    HStack {
+                        Image(systemName: "trophy.fill")
+                            .foregroundColor(theme.successColor)
+                        Text("Best Streak")
+                            .foregroundColor(theme.primaryText)
+                        Spacer()
+                        Text("\(game.stats.dailyChallengeStats.bestDailyStreak) days")
+                            .foregroundColor(theme.successColor)
+                            .fontWeight(.semibold)
+                    }
+                    .listRowBackground(theme.cellBackgroundColor)
+                    
+                    if game.stats.dailyChallengeStats.perfectDays > 0 {
+                        HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(theme.primaryAccent)
+                            Text("Perfect Days")
+                                .foregroundColor(theme.primaryText)
+                            Spacer()
+                            Text("\(game.stats.dailyChallengeStats.perfectDays)")
+                                .foregroundColor(theme.primaryAccent)
+                                .fontWeight(.semibold)
+                        }
+                        .listRowBackground(theme.cellBackgroundColor)
+                    }
+                    
+                    // Per-difficulty daily stats
+                    ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                        let completed = game.stats.dailyChallengeStats.dailiesCompleted[difficulty.rawValue] ?? 0
+                        if completed > 0 {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text(difficulty.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundColor(theme.primaryText)
+                                    Spacer()
+                                    Text("\(completed) completed")
+                                        .font(.caption)
+                                        .foregroundColor(theme.secondaryText)
+                                }
+                                
+                                HStack {
+                                    if let bestTime = game.stats.dailyChallengeStats.bestDailyTimes[difficulty.rawValue] {
+                                        Label(formatTime(bestTime), systemImage: "bolt.fill")
+                                            .font(.caption)
+                                            .foregroundColor(theme.successColor)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    if let avgTime = game.stats.dailyChallengeStats.averageDailyTime(for: difficulty.rawValue) {
+                                        Label(formatTime(avgTime), systemImage: "clock.fill")
+                                            .font(.caption)
+                                            .foregroundColor(theme.secondaryText)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .listRowBackground(theme.cellBackgroundColor)
+                        }
+                    }
+                }
+                
+                // MARK: - Overall Statistics
+                Section(header: Text("All Games")
+                    .foregroundColor(theme.primaryAccent)
+                    .fontWeight(.semibold)) {
+                    HStack {
+                        Text("Current Streak")
+                            .foregroundColor(theme.primaryText)
+                        Spacer()
+                        Text("\(game.stats.currentStreak)")
+                            .foregroundColor(theme.warningColor)
+                            .fontWeight(.semibold)
+                    }
+                    .listRowBackground(theme.cellBackgroundColor)
                     
                     HStack {
                         Text("Best Streak")
+                            .foregroundColor(theme.primaryText)
                         Spacer()
                         Text("\(game.stats.bestStreak)")
-                            .foregroundColor(.orange)
+                            .foregroundColor(theme.warningColor)
                             .fontWeight(.semibold)
                     }
+                    .listRowBackground(theme.cellBackgroundColor)
                 }
                 
                 // MARK: - Per-Difficulty Statistics
                 ForEach(Difficulty.allCases, id: \.self) { difficulty in
-                    Section(header: Text(difficulty.name)) {
+                    Section(header: Text(difficulty.name)
+                        .foregroundColor(theme.primaryAccent)
+                        .fontWeight(.semibold)) {
                         HStack {
                             Text("Games Played")
+                                .foregroundColor(theme.primaryText)
                             Spacer()
                             Text("\(game.stats.gamesPlayed[difficulty.rawValue] ?? 0)")
-                                .foregroundColor(.secondary)
+                                .foregroundColor(theme.secondaryText)
                         }
+                        .listRowBackground(theme.cellBackgroundColor)
                         
                         HStack {
                             Text("Games Completed")
+                                .foregroundColor(theme.primaryText)
                             Spacer()
                             Text("\(game.stats.gamesCompleted[difficulty.rawValue] ?? 0)")
-                                .foregroundColor(.green)
+                                .foregroundColor(theme.successColor)
                         }
+                        .listRowBackground(theme.cellBackgroundColor)
                         
                         if let bestTime = game.stats.bestTimes[difficulty.rawValue] {
                             HStack {
                                 Text("Best Time")
+                                    .foregroundColor(theme.primaryText)
                                 Spacer()
                                 Text(formatTime(bestTime))
-                                    .foregroundColor(.blue)
+                                    .foregroundColor(theme.primaryAccent)
                                     .fontWeight(.medium)
                             }
+                            .listRowBackground(theme.cellBackgroundColor)
                         }
                         
                         if let avgTime = game.stats.averageTime(for: difficulty.rawValue) {
                             HStack {
                                 Text("Average Time")
+                                    .foregroundColor(theme.primaryText)
                                 Spacer()
                                 Text(formatTime(avgTime))
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(theme.secondaryText)
                             }
+                            .listRowBackground(theme.cellBackgroundColor)
                         }
                     }
                 }
@@ -74,24 +175,42 @@ struct StatisticsView: View {
                 // MARK: - Reset Statistics
                 Section {
                     Button(action: {
-                        game.resetStats()
+                        showingResetConfirmation = true
                     }) {
                         HStack {
                             Spacer()
                             Text("Reset Statistics")
-                                .foregroundColor(.red)
+                                .foregroundColor(theme.errorColor)
                             Spacer()
                         }
                     }
+                    .listRowBackground(theme.cellBackgroundColor)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(theme.backgroundColor)
             .navigationTitle("Statistics")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(theme.primaryAccent, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         presentationMode.wrappedValue.dismiss()
                     }
+                    .foregroundColor(.white)
                 }
+            }
+            .alert(isPresented: $showingResetConfirmation) {
+                Alert(
+                    title: Text("Reset Statistics?"),
+                    message: Text("This will permanently delete all your game statistics, including streaks, completion times, and game counts. This action cannot be undone."),
+                    primaryButton: .destructive(Text("Reset")) {
+                        game.resetStats()
+                    },
+                    secondaryButton: .cancel()
+                )
             }
         }
         #if os(macOS)

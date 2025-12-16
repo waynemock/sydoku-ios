@@ -3,7 +3,7 @@ import SwiftUI
 /// A view representing a single cell in the Sudoku grid.
 ///
 /// `SudokuCell` displays the cell's value, notes (pencil marks), and various visual states
-/// including selection, conflicts, highlights, and hints.
+/// including selection, conflicts, highlights, and hints. Uses the app theme for consistent styling.
 struct SudokuCell: View {
     /// The numeric value of the cell (1-9), or 0 if empty.
     let value: Int
@@ -32,30 +32,74 @@ struct SudokuCell: View {
     /// The action to perform when the cell is tapped.
     let action: () -> Void
     
+    /// Environment theme.
+    @Environment(\.theme) var theme
+    
     var body: some View {
         Button(action: action) {
             ZStack {
-                // Background color based on cell state
-                Rectangle()
-                    .fill(isSelected ? Color.blue.opacity(0.5) :
-                          isHintCell ? Color.green.opacity(0.4) :
-                          isHighlighted ? Color.yellow.opacity(0.3) :
-                          Color(red: 0.25, green: 0.25, blue: 0.27))
+                // Background with gradient for depth
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(backgroundColor)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 2)
+                            .stroke(borderColor, lineWidth: isSelected ? 2 : 0)
+                    )
                 
                 if value != 0 {
                     // Display the cell's value
                     Text("\(value)")
-                        .font(.system(size: 24, weight: isInitial ? .bold : .regular))
-                        .foregroundColor(hasConflict ? .red : (isInitial ? .white : Color.cyan))
+                        .font(.title2.weight(isInitial ? .bold : .semibold))
+                        .foregroundStyle(textColor)
                         .scaleEffect(isLastPlaced ? 1.3 : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isLastPlaced)
+                        .shadow(color: hasConflict ? theme.errorColor.opacity(0.3) : Color.clear, radius: 4)
                 } else if !cellNotes.isEmpty {
                     // Display pencil mark notes
-                    NotesGrid(notes: cellNotes)
+                    NotesGrid(notes: cellNotes, theme: theme)
                 }
             }
         }
         .aspectRatio(1, contentMode: .fit)
+        .buttonStyle(CellButtonStyle())
+    }
+    
+    /// Determines the background color based on cell state.
+    private var backgroundColor: Color {
+        if isSelected {
+            return theme.selectedCellColor
+        } else if isHintCell {
+            return theme.hintCellColor
+        } else if isHighlighted {
+            return theme.highlightedCellColor
+        } else {
+            return theme.cellBackgroundColor
+        }
+    }
+    
+    /// Determines the border color for selected cells.
+    private var borderColor: Color {
+        isSelected ? theme.primaryAccent : Color.clear
+    }
+    
+    /// Determines the text color based on cell state.
+    private var textColor: Color {
+        if hasConflict {
+            return theme.errorColor
+        } else if isInitial {
+            return theme.initialCellText
+        } else {
+            return theme.userCellText
+        }
+    }
+}
+
+/// A button style for cell buttons that adds subtle press feedback.
+struct CellButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
@@ -66,6 +110,9 @@ struct NotesGrid: View {
     /// The set of numbers to display as notes.
     let notes: Set<Int>
     
+    /// The theme for styling.
+    let theme: Theme
+    
     var body: some View {
         VStack(spacing: 1) {
             ForEach(0..<3, id: \.self) { row in
@@ -73,8 +120,8 @@ struct NotesGrid: View {
                     ForEach(1...3, id: \.self) { col in
                         let num = row * 3 + col
                         Text(notes.contains(num) ? "\(num)" : "")
-                            .font(.system(size: 9))
-                            .foregroundColor(.white.opacity(0.6))
+                            .font(.caption2.weight(.medium))
+                            .foregroundColor(theme.secondaryText)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }

@@ -37,7 +37,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		B0C27A1A2EEF2D9100D4B294 /* Exceptions for "Sydoku" folder in "Sydoku" target */ = {
+		B08F47822EEFBEAD00C13E1B /* Exceptions for "Sydoku" folder in "Sydoku" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -47,10 +47,10 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		B0C279F92EEF2D9000D4B294 /* Sydoku */ = {
+		B08F476A2EEFBEAD00C13E1B /* Sydoku */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				B0C27A1A2EEF2D9100D4B294 /* Exceptions for "Sydoku" folder in "Sydoku" target */,
+				B08F47822EEFBEAD00C13E1B /* Exceptions for "Sydoku" folder in "Sydoku" target */,
 			);
 			path = Sydoku;
 			sourceTree = "<group>";
@@ -95,12 +95,12 @@
 		B0C279EE2EEF2D9000D4B294 = {
 			isa = PBXGroup;
 			children = (
-				B0C279F92EEF2D9000D4B294 /* Sydoku */,
+				B04C34F62EEF773000F59C4F /* LICENSE */,
+				B04C34F82EEF7B8000F59C4F /* README.md */,
+				B08F476A2EEFBEAD00C13E1B /* Sydoku */,
 				B0C27A0B2EEF2D9100D4B294 /* SydokuTests */,
 				B0C27A152EEF2D9100D4B294 /* SydokuUITests */,
 				B0C279F82EEF2D9000D4B294 /* Products */,
-				B04C34F62EEF773000F59C4F /* LICENSE */,
-				B04C34F82EEF7B8000F59C4F /* README.md */,
 			);
 			sourceTree = "<group>";
 		};
@@ -130,7 +130,7 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				B0C279F92EEF2D9000D4B294 /* Sydoku */,
+				B08F476A2EEFBEAD00C13E1B /* Sydoku */,
 			);
 			name = Sydoku;
 			packageProductDependencies = (
@@ -307,6 +307,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sydoku/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Sydoku;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -354,6 +355,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sydoku/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Sydoku;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

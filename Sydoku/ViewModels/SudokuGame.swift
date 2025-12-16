@@ -67,20 +67,23 @@ class SudokuGame: ObservableObject {
     /// Whether to show the confetti celebration animation.
     @Published var showConfetti = false
     
-    /// The current hint level selected by the user.
-    @Published var currentHintLevel: HintLevel = .showRegion
-    
-    /// The region identifier for the current hint (e.g., "row 3").
-    @Published var hintRegion: String?
-    
-    /// The number revealed by the current hint.
-    @Published var hintNumber: Int?
-    
     /// The cell coordinates highlighted by the current hint.
     @Published var hintCell: (row: Int, col: Int)?
     
     /// Whether the current game is a daily challenge.
     @Published var isDailyChallenge = false
+    
+    /// The date string of the current daily challenge (if applicable).
+    var dailyChallengeDate: String?
+    
+    /// Whether the saved daily challenge is from a previous day.
+    var isDailyChallengeExpired: Bool {
+        guard isDailyChallenge, let savedDate = dailyChallengeDate else {
+            return false
+        }
+        let todayString = DailyChallenge.getDateString(for: Date())
+        return savedDate != todayString
+    }
     
     /// Whether today's daily challenge has been completed.
     @Published var dailyChallengeCompleted = false
@@ -112,6 +115,11 @@ class SudokuGame: ObservableObject {
     private var gameStartDate = Date()
     
     // MARK: - Computed Properties
+    
+    /// The current puzzle's difficulty level.
+    var difficulty: Difficulty {
+        currentDifficulty
+    }
     
     /// Whether an undo operation is available.
     var canUndo: Bool { !undoStack.isEmpty }
@@ -176,7 +184,7 @@ class SudokuGame: ObservableObject {
     // MARK: - Timer Management
     
     /// Starts the game timer, updating elapsed time every second.
-    private func startTimer() {
+    func startTimer() {
         stopTimer()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.elapsedTime += 1
@@ -185,7 +193,7 @@ class SudokuGame: ObservableObject {
     }
     
     /// Stops the game timer.
-    private func stopTimer() {
+    func stopTimer() {
         timer?.invalidate()
         timer = nil
     }
@@ -229,7 +237,9 @@ class SudokuGame: ObservableObject {
             difficulty: currentDifficulty.rawValue,
             elapsedTime: elapsedTime,
             startDate: gameStartDate,
-            mistakes: mistakes
+            mistakes: mistakes,
+            isDailyChallenge: isDailyChallenge,
+            dailyChallengeDate: dailyChallengeDate
         )
         
         if let encoded = try? JSONEncoder().encode(saved) {
@@ -239,20 +249,8 @@ class SudokuGame: ObservableObject {
     }
     
     func loadSavedGame() {
-        guard let data = UserDefaults.standard.data(forKey: "savedGame"),
-              let saved = try? JSONDecoder().decode(SavedGame.self, from: data),
-              let difficulty = Difficulty(rawValue: saved.difficulty) else {
-            return
-        }
-        
-        board = saved.board
-        notes = saved.notes
-        solution = saved.solution
-        initialBoard = saved.initialBoard
-        currentDifficulty = difficulty
-        elapsedTime = saved.elapsedTime
-        gameStartDate = saved.startDate
-        mistakes = saved.mistakes
+        // Game data is already loaded in checkForSavedGame()
+        // Just reset state and start the timer
         isComplete = false
         hasError = false
         isGameOver = false
@@ -271,6 +269,24 @@ class SudokuGame: ObservableObject {
     
     private func checkForSavedGame() {
         hasSavedGame = UserDefaults.standard.data(forKey: "savedGame") != nil
+        
+        // Load the saved game for display (without starting the timer)
+        if hasSavedGame,
+           let data = UserDefaults.standard.data(forKey: "savedGame"),
+           let saved = try? JSONDecoder().decode(SavedGame.self, from: data),
+           let difficulty = Difficulty(rawValue: saved.difficulty) {
+            board = saved.board
+            notes = saved.notes
+            solution = saved.solution
+            initialBoard = saved.initialBoard
+            currentDifficulty = difficulty
+            elapsedTime = saved.elapsedTime
+            gameStartDate = saved.startDate
+            mistakes = saved.mistakes
+            isDailyChallenge = saved.isDailyChallenge
+            dailyChallengeDate = saved.dailyChallengeDate
+            // Don't start the timer - let the user decide to continue or start new
+        }
     }
     
     // MARK: - Statistics
@@ -335,11 +351,12 @@ class SudokuGame: ObservableObject {
     /// - Parameters:
     ///   - difficulty: The difficulty level, which determines how many cells to remove.
     ///   - seed: An optional seed for deterministic puzzle generation (used for daily challenges).
-    func generatePuzzle(difficulty: Difficulty, seed: Int? = nil) {
+    ///   - isDailyChallenge: Whether this puzzle is a daily challenge.
+    func generatePuzzle(difficulty: Difficulty, seed: Int? = nil, isDailyChallenge: Bool = false) {
         stopTimer()
         isGenerating = true
         currentDifficulty = difficulty
-        isDailyChallenge = false
+        self.isDailyChallenge = isDailyChallenge
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -395,6 +412,7 @@ class SudokuGame: ObservableObject {
         self.stats.recordStart(difficulty: difficulty.rawValue)
         self.saveStats()
         self.deleteSavedGame()
+        self.saveGame()
         self.startTimer()
     }
     
@@ -659,6 +677,16 @@ class SudokuGame: ObservableObject {
         }
     }
     
+    /// Clears all notes from all cells in the puzzle.
+    func clearAllNotes() {
+        saveState()
+        for r in 0..<9 {
+            for c in 0..<9 {
+                notes[r][c].removeAll()
+            }
+        }
+    }
+    
     /// Checks if the puzzle has been completed successfully.
     func checkCompletion() {
         for row in board {
@@ -689,10 +717,20 @@ class SudokuGame: ObservableObject {
         }
         
         if isDailyChallenge {
-            let dateString = DailyChallenge.getDateString(for: Date())
-            settings.lastDailyPuzzleDate = dateString
-            dailyChallengeCompleted = true
+            // Mark this difficulty's daily challenge as completed
+            settings.markDailyChallengeCompleted(for: currentDifficulty)
             saveSettings()
+            
+            // Record daily challenge stats
+            let today = DailyChallenge.getDateString(for: Date())
+            let allCompleted = settings.areAllDailyChallengesCompleted()
+            stats.dailyChallengeStats.recordDailyWin(
+                difficulty: currentDifficulty.rawValue,
+                time: elapsedTime,
+                date: today,
+                allCompleted: allCompleted
+            )
+            saveStats()
         }
     }
     
@@ -707,75 +745,85 @@ class SudokuGame: ObservableObject {
     
     // MARK: - Hints
     func giveHint() {
-        var emptyCells = [(Int, Int)]()
+        // Find the best cell to fill next - one without notes and with the fewest possible candidates
+        var bestCell: (row: Int, col: Int)? = nil
+        var fewestCandidates = 10
+        
         for r in 0..<9 {
             for c in 0..<9 {
-                if board[r][c] == 0 {
-                    emptyCells.append((r, c))
+                // Only consider empty cells without any notes
+                if board[r][c] == 0 && notes[r][c].isEmpty {
+                    let candidates = getPossibleNumbers(row: r, col: c)
+                    if candidates.count > 0 && candidates.count < fewestCandidates {
+                        fewestCandidates = candidates.count
+                        bestCell = (r, c)
+                    }
                 }
             }
         }
         
-        guard let randomCell = emptyCells.randomElement() else { return }
-        let targetRow = randomCell.0
-        let targetCol = randomCell.1
-        let targetNum = solution[targetRow][targetCol]
-        
-        switch currentHintLevel {
-        case .showRegion:
-            let regions = ["row \(targetRow + 1)", "column \(targetCol + 1)", "box"]
-            hintRegion = regions.randomElement()
-            hintNumber = nil
-            hintCell = nil
-            currentHintLevel = .showNumber
-            
-        case .showNumber:
-            hintRegion = nil
-            hintNumber = targetNum
-            hintCell = nil
-            currentHintLevel = .highlightCell
-            
-        case .highlightCell:
-            hintRegion = nil
-            hintNumber = nil
-            hintCell = randomCell
-            selectedCell = randomCell
-            currentHintLevel = .revealAnswer
-            
-        case .revealAnswer:
+        // Fill in the notes for the best cell
+        if let cell = bestCell {
+            let candidates = getPossibleNumbers(row: cell.row, col: cell.col)
             saveState()
-            board[targetRow][targetCol] = solution[targetRow][targetCol]
-            initialBoard[targetRow][targetCol] = solution[targetRow][targetCol]
-            notes[targetRow][targetCol].removeAll()
-            hintRegion = nil
-            hintNumber = nil
-            hintCell = nil
-            currentHintLevel = .showRegion
-            checkCompletion()
+            notes[cell.row][cell.col] = candidates
+            hintCell = cell
+            selectedCell = cell
         }
     }
     
     func resetHints() {
-        currentHintLevel = .showRegion
-        hintRegion = nil
-        hintNumber = nil
         hintCell = nil
     }
     
+    // Helper function to get possible numbers for a cell
+    private func getPossibleNumbers(row: Int, col: Int) -> Set<Int> {
+        var possible = Set(1...9)
+        
+        // Remove numbers in the same row
+        for c in 0..<9 {
+            if board[row][c] != 0 {
+                possible.remove(board[row][c])
+            }
+        }
+        
+        // Remove numbers in the same column
+        for r in 0..<9 {
+            if board[r][col] != 0 {
+                possible.remove(board[r][col])
+            }
+        }
+        
+        // Remove numbers in the same 3x3 box
+        let boxRow = (row / 3) * 3
+        let boxCol = (col / 3) * 3
+        for r in boxRow..<boxRow + 3 {
+            for c in boxCol..<boxCol + 3 {
+                if board[r][c] != 0 {
+                    possible.remove(board[r][c])
+                }
+            }
+        }
+        
+        return possible
+    }
+    
     // MARK: - Daily Challenge
-    func generateDailyChallenge() {
+    func generateDailyChallenge(difficulty: Difficulty) {
         let today = Date()
         let seed = DailyChallenge.getSeed(for: today)
         let dateString = DailyChallenge.getDateString(for: today)
         
-        if settings.lastDailyPuzzleDate == dateString {
-            dailyChallengeCompleted = true
-        } else {
-            dailyChallengeCompleted = false
-        }
-        
-        isDailyChallenge = true
-        generatePuzzle(difficulty: .medium, seed: seed)
+        generatePuzzle(difficulty: difficulty, seed: seed, isDailyChallenge: true)
+        dailyChallengeDate = dateString
+    }
+    
+    /// Checks if a specific difficulty's daily challenge has been completed today.
+    ///
+    /// - Parameter difficulty: The difficulty level to check.
+    /// - Returns: `true` if today's daily challenge for this difficulty has been completed.
+    func isDailyChallengeCompleted(for difficulty: Difficulty) -> Bool {
+        return settings.isDailyChallengeCompleted(for: difficulty)
     }
     
     // MARK: - Puzzle Code
