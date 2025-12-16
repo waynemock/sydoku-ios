@@ -20,8 +20,87 @@ struct StatisticsView: View {
     var body: some View {
         NavigationView {
             Form {
+                // MARK: - Daily Challenge Statistics
+                Section(header: Text("Daily Challenges")
+                    .foregroundColor(theme.primaryAccent)
+                    .fontWeight(.semibold)) {
+                    HStack {
+                        Image(systemName: "flame.fill")
+                            .foregroundColor(theme.warningColor)
+                        Text("Current Streak")
+                            .foregroundColor(theme.primaryText)
+                        Spacer()
+                        Text("\(game.stats.dailyChallengeStats.currentDailyStreak) days")
+                            .foregroundColor(theme.warningColor)
+                            .fontWeight(.semibold)
+                    }
+                    .listRowBackground(theme.cellBackgroundColor)
+                    
+                    HStack {
+                        Image(systemName: "trophy.fill")
+                            .foregroundColor(theme.successColor)
+                        Text("Best Streak")
+                            .foregroundColor(theme.primaryText)
+                        Spacer()
+                        Text("\(game.stats.dailyChallengeStats.bestDailyStreak) days")
+                            .foregroundColor(theme.successColor)
+                            .fontWeight(.semibold)
+                    }
+                    .listRowBackground(theme.cellBackgroundColor)
+                    
+                    if game.stats.dailyChallengeStats.perfectDays > 0 {
+                        HStack {
+                            Image(systemName: "star.fill")
+                                .foregroundColor(theme.primaryAccent)
+                            Text("Perfect Days")
+                                .foregroundColor(theme.primaryText)
+                            Spacer()
+                            Text("\(game.stats.dailyChallengeStats.perfectDays)")
+                                .foregroundColor(theme.primaryAccent)
+                                .fontWeight(.semibold)
+                        }
+                        .listRowBackground(theme.cellBackgroundColor)
+                    }
+                    
+                    // Per-difficulty daily stats
+                    ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                        let completed = game.stats.dailyChallengeStats.dailiesCompleted[difficulty.rawValue] ?? 0
+                        if completed > 0 {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Text(difficulty.name)
+                                        .font(.subheadline.weight(.semibold))
+                                        .foregroundColor(theme.primaryText)
+                                    Spacer()
+                                    Text("\(completed) completed")
+                                        .font(.caption)
+                                        .foregroundColor(theme.secondaryText)
+                                }
+                                
+                                HStack {
+                                    if let bestTime = game.stats.dailyChallengeStats.bestDailyTimes[difficulty.rawValue] {
+                                        Label(formatTime(bestTime), systemImage: "bolt.fill")
+                                            .font(.caption)
+                                            .foregroundColor(theme.successColor)
+                                    }
+                                    
+                                    Spacer()
+                                    
+                                    if let avgTime = game.stats.dailyChallengeStats.averageDailyTime(for: difficulty.rawValue) {
+                                        Label(formatTime(avgTime), systemImage: "clock.fill")
+                                            .font(.caption)
+                                            .foregroundColor(theme.secondaryText)
+                                    }
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .listRowBackground(theme.cellBackgroundColor)
+                        }
+                    }
+                }
+                
                 // MARK: - Overall Statistics
-                Section(header: Text("Overall Stats")
+                Section(header: Text("All Games")
                     .foregroundColor(theme.primaryAccent)
                     .fontWeight(.semibold)) {
                     HStack {

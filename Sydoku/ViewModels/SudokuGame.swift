@@ -717,10 +717,20 @@ class SudokuGame: ObservableObject {
         }
         
         if isDailyChallenge {
-            let dateString = DailyChallenge.getDateString(for: Date())
-            settings.lastDailyPuzzleDate = dateString
-            dailyChallengeCompleted = true
+            // Mark this difficulty's daily challenge as completed
+            settings.markDailyChallengeCompleted(for: currentDifficulty)
             saveSettings()
+            
+            // Record daily challenge stats
+            let today = DailyChallenge.getDateString(for: Date())
+            let allCompleted = settings.areAllDailyChallengesCompleted()
+            stats.dailyChallengeStats.recordDailyWin(
+                difficulty: currentDifficulty.rawValue,
+                time: elapsedTime,
+                date: today,
+                allCompleted: allCompleted
+            )
+            saveStats()
         }
     }
     
@@ -799,31 +809,21 @@ class SudokuGame: ObservableObject {
     }
     
     // MARK: - Daily Challenge
-    func generateDailyChallenge(difficulty: Difficulty? = nil) {
+    func generateDailyChallenge(difficulty: Difficulty) {
         let today = Date()
         let seed = DailyChallenge.getSeed(for: today)
         let dateString = DailyChallenge.getDateString(for: today)
         
-        if settings.lastDailyPuzzleDate == dateString {
-            dailyChallengeCompleted = true
-        } else {
-            dailyChallengeCompleted = false
-        }
-        
-        // Use provided difficulty or get from settings
-        let selectedDifficulty: Difficulty
-        if let difficulty = difficulty {
-            selectedDifficulty = difficulty
-            // Save the preference
-            settings.dailyChallengeDifficulty = difficulty
-            saveSettings()
-        } else {
-            // Load from settings
-            selectedDifficulty = settings.dailyChallengeDifficulty
-        }
-        
-        generatePuzzle(difficulty: selectedDifficulty, seed: seed, isDailyChallenge: true)
+        generatePuzzle(difficulty: difficulty, seed: seed, isDailyChallenge: true)
         dailyChallengeDate = dateString
+    }
+    
+    /// Checks if a specific difficulty's daily challenge has been completed today.
+    ///
+    /// - Parameter difficulty: The difficulty level to check.
+    /// - Returns: `true` if today's daily challenge for this difficulty has been completed.
+    func isDailyChallengeCompleted(for difficulty: Difficulty) -> Bool {
+        return settings.isDailyChallengeCompleted(for: difficulty)
     }
     
     // MARK: - Puzzle Code

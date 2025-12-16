@@ -64,22 +64,42 @@ struct GameSettings: Codable {
     /// the same number are highlighted to help identify patterns.
     var highlightSameNumbers: Bool = true
     
-    /// The date string (yyyy-MM-dd) of the last completed daily challenge.
+    /// The date string (yyyy-MM-dd) of the last completed daily challenge for each difficulty.
     ///
-    /// Used to track whether today's daily challenge has already been completed
-    /// and prevent duplicate completions.
-    var lastDailyPuzzleDate: String = ""
-    
-    /// The difficulty level for daily challenges.
-    ///
-    /// Users can choose their preferred difficulty level for daily challenges.
-    /// Defaults to medium for a balanced experience.
-    var dailyChallengeDifficulty: Difficulty = .medium
+    /// Used to track whether today's daily challenge has already been completed for each difficulty level
+    /// and prevent duplicate completions. Keys are difficulty raw values ("easy", "medium", "hard").
+    var completedDailyChallenges: [String: String] = [:]
     
     /// The selected theme type for the app.
     var themeType: Theme.ThemeType = .sunset
     
     /// The preferred color scheme: system, light, or dark.
     var preferredColorScheme: ColorSchemePreference = .dark
+    
+    /// Checks if today's daily challenge has been completed for a specific difficulty.
+    ///
+    /// - Parameter difficulty: The difficulty level to check.
+    /// - Returns: `true` if today's challenge for this difficulty has been completed.
+    func isDailyChallengeCompleted(for difficulty: Difficulty) -> Bool {
+        let today = DailyChallenge.getDateString(for: Date())
+        return completedDailyChallenges[difficulty.rawValue] == today
+    }
+    
+    /// Marks today's daily challenge as completed for a specific difficulty.
+    ///
+    /// - Parameter difficulty: The difficulty level that was completed.
+    mutating func markDailyChallengeCompleted(for difficulty: Difficulty) {
+        let today = DailyChallenge.getDateString(for: Date())
+        completedDailyChallenges[difficulty.rawValue] = today
+    }
+    
+    /// Checks if all three daily challenges have been completed today.
+    ///
+    /// - Returns: `true` if easy, medium, and hard daily challenges have all been completed today.
+    func areAllDailyChallengesCompleted() -> Bool {
+        return isDailyChallengeCompleted(for: .easy) &&
+               isDailyChallengeCompleted(for: .medium) &&
+               isDailyChallengeCompleted(for: .hard)
+    }
 }
 

@@ -17,8 +17,8 @@ struct NewGameView: View {
     init(game: SudokuGame, isPresented: Binding<Bool>) {
         self.game = game
         self._isPresented = isPresented
-        // Default to Daily mode only if today's challenge hasn't been completed
-        self._isDailyMode = State(initialValue: !game.dailyChallengeCompleted)
+        // Default to Daily mode unless all three daily challenges have been completed
+        self._isDailyMode = State(initialValue: !game.settings.areAllDailyChallengesCompleted())
     }
     
     var body: some View {
@@ -69,72 +69,63 @@ struct NewGameView: View {
             }
             
             // Info text
-            Text(isDailyMode ? "Play today's daily challenge" : "Each puzzle has a unique solution")
+            Text(isDailyMode ? "Play today's daily challenges" : "Each puzzle has a unique solution")
                 .font(.caption)
                 .foregroundColor(theme.secondaryText)
                 .multilineTextAlignment(.center)
             
             // Difficulty buttons
             VStack(spacing: 12) {
-                Button(action: {
-                    if isDailyMode {
-                        game.generateDailyChallenge(difficulty: .easy)
-                    } else {
-                        game.generatePuzzle(difficulty: .easy)
+                DifficultyButton(
+                    difficulty: .easy,
+                    clues: 46,
+                    color: theme.successColor,
+                    isDailyMode: isDailyMode,
+                    isCompleted: game.isDailyChallengeCompleted(for: .easy),
+                    theme: theme,
+                    action: {
+                        if isDailyMode {
+                            game.generateDailyChallenge(difficulty: .easy)
+                        } else {
+                            game.generatePuzzle(difficulty: .easy)
+                        }
+                        isPresented = false
                     }
-                    isPresented = false
-                }) {
-                    Text("Easy (46 clues)")
-                        .font(.body.weight(.semibold))
-                        .foregroundColor(theme.primaryText)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(theme.successColor.opacity(0.2))
-                        )
-                }
-                .buttonStyle(.plain)
+                )
                 
-                Button(action: {
-                    if isDailyMode {
-                        game.generateDailyChallenge(difficulty: .medium)
-                    } else {
-                        game.generatePuzzle(difficulty: .medium)
+                DifficultyButton(
+                    difficulty: .medium,
+                    clues: 36,
+                    color: theme.warningColor,
+                    isDailyMode: isDailyMode,
+                    isCompleted: game.isDailyChallengeCompleted(for: .medium),
+                    theme: theme,
+                    action: {
+                        if isDailyMode {
+                            game.generateDailyChallenge(difficulty: .medium)
+                        } else {
+                            game.generatePuzzle(difficulty: .medium)
+                        }
+                        isPresented = false
                     }
-                    isPresented = false
-                }) {
-                    Text("Medium (36 clues)")
-                        .font(.body.weight(.semibold))
-                        .foregroundColor(theme.primaryText)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(theme.warningColor.opacity(0.2))
-                        )
-                }
-                .buttonStyle(.plain)
+                )
                 
-                Button(action: {
-                    if isDailyMode {
-                        game.generateDailyChallenge(difficulty: .hard)
-                    } else {
-                        game.generatePuzzle(difficulty: .hard)
+                DifficultyButton(
+                    difficulty: .hard,
+                    clues: 29,
+                    color: theme.errorColor,
+                    isDailyMode: isDailyMode,
+                    isCompleted: game.isDailyChallengeCompleted(for: .hard),
+                    theme: theme,
+                    action: {
+                        if isDailyMode {
+                            game.generateDailyChallenge(difficulty: .hard)
+                        } else {
+                            game.generatePuzzle(difficulty: .hard)
+                        }
+                        isPresented = false
                     }
-                    isPresented = false
-                }) {
-                    Text("Hard (29 clues)")
-                        .font(.body.weight(.semibold))
-                        .foregroundColor(theme.primaryText)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(theme.errorColor.opacity(0.2))
-                        )
-                }
-                .buttonStyle(.plain)
+                )
             }
             
             // Cancel button (only show if there's an active game)
@@ -158,6 +149,50 @@ struct NewGameView: View {
                 .fill(theme.backgroundColor)
                 .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
         )
+    }
+}
+
+/// A button for selecting a difficulty level, with optional completion indicator.
+struct DifficultyButton: View {
+    let difficulty: Difficulty
+    let clues: Int
+    let color: Color
+    let isDailyMode: Bool
+    let isCompleted: Bool
+    let theme: Theme
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(difficulty.name)
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(theme.primaryText)
+                    Text("\(clues) clues")
+                        .font(.caption)
+                        .foregroundColor(theme.secondaryText)
+                }
+                
+                Spacer()
+                
+                // Show checkmark if daily challenge for this difficulty is completed
+                if isDailyMode && isCompleted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(color)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
+            .background(
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(color.opacity(0.2))
+            )
+        }
+        .buttonStyle(.plain)
+        .opacity(isDailyMode && isCompleted ? 0.6 : 1.0)
     }
 }
 
