@@ -1,10 +1,40 @@
 import Foundation
+import SwiftUI
 
 /// User preferences and settings for the Sudoku game.
 ///
 /// `GameSettings` stores configurable gameplay options and preferences that persist
 /// across game sessions. Settings are encoded/decoded for storage in UserDefaults.
 struct GameSettings: Codable {
+    /// Preferred color scheme option.
+    enum ColorSchemePreference: String, Codable, CaseIterable {
+        case system
+        case light
+        case dark
+        
+        /// Converts the preference to a SwiftUI ColorScheme.
+        /// Returns nil for system preference to allow automatic adaptation.
+        func toColorScheme(system: ColorScheme) -> ColorScheme {
+            switch self {
+            case .system:
+                return system
+            case .light:
+                return .light
+            case .dark:
+                return .dark
+            }
+        }
+        
+        /// Display name for the preference.
+        var displayName: String {
+            switch self {
+            case .system: return "System"
+            case .light: return "Light"
+            case .dark: return "Dark"
+            }
+        }
+    }
+    
     /// Whether to automatically check for errors when placing numbers.
     ///
     /// When enabled, incorrect placements are immediately detected and count toward
@@ -40,16 +70,16 @@ struct GameSettings: Codable {
     /// and prevent duplicate completions.
     var lastDailyPuzzleDate: String = ""
     
-    /// The difficulty level for daily challenges: "easy", "medium", or "hard".
+    /// The difficulty level for daily challenges.
     ///
     /// Users can choose their preferred difficulty level for daily challenges.
-    /// Defaults to "medium" for a balanced experience.
-    var dailyChallengeDifficulty: String = "medium"
+    /// Defaults to medium for a balanced experience.
+    var dailyChallengeDifficulty: Difficulty = .medium
     
     /// The selected theme type for the app.
-    var themeType: String = "Classic"
+    var themeType: Theme.ThemeType = .sunset
     
-    /// The preferred color scheme: "light", "dark", or "system".
-    var preferredColorScheme: String = "dark"
+    /// The preferred color scheme: system, light, or dark.
+    var preferredColorScheme: ColorSchemePreference = .dark
 }
 

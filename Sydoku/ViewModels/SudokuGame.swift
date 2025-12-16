@@ -815,11 +815,11 @@ class SudokuGame: ObservableObject {
         if let difficulty = difficulty {
             selectedDifficulty = difficulty
             // Save the preference
-            settings.dailyChallengeDifficulty = difficulty.rawValue
+            settings.dailyChallengeDifficulty = difficulty
             saveSettings()
         } else {
             // Load from settings
-            selectedDifficulty = Difficulty(rawValue: settings.dailyChallengeDifficulty) ?? .medium
+            selectedDifficulty = settings.dailyChallengeDifficulty
         }
         
         generatePuzzle(difficulty: selectedDifficulty, seed: seed, isDailyChallenge: true)

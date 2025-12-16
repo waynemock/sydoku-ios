@@ -71,6 +71,7 @@ struct NumberPad: View {
             }
         }
         .padding()
+        .frame(maxWidth: 600)  // Limit to portrait-like width
     }
 }
 

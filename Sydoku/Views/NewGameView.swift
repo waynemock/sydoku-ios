@@ -9,10 +9,17 @@ struct NewGameView: View {
     @Binding var isPresented: Bool
     
     /// Whether daily challenge mode is selected (vs random).
-    @State private var isDailyMode = true
+    @State private var isDailyMode: Bool
     
     /// The current theme for styling.
     @Environment(\.theme) var theme
+    
+    init(game: SudokuGame, isPresented: Binding<Bool>) {
+        self.game = game
+        self._isPresented = isPresented
+        // Default to Daily mode only if today's challenge hasn't been completed
+        self._isDailyMode = State(initialValue: !game.dailyChallengeCompleted)
+    }
     
     var body: some View {
         VStack(spacing: 24) {

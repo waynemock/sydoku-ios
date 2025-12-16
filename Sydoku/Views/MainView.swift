@@ -179,25 +179,16 @@ struct MainView: View {
                     showingContinueAlert = true
                 }
             } else {
-                game.generatePuzzle(difficulty: .medium)
+                // No saved game - show the new game picker so user can choose difficulty
+                showingNewGamePicker = true
             }
         }
     }
     
     /// Loads the theme from settings.
     private func loadTheme() {
-        if let themeType = Theme.ThemeType(rawValue: game.settings.themeType) {
-            let colorScheme: ColorScheme
-            switch game.settings.preferredColorScheme {
-            case "light":
-                colorScheme = .light
-            case "dark":
-                colorScheme = .dark
-            default:
-                colorScheme = systemColorScheme
-            }
-            theme = Theme(type: themeType, colorScheme: colorScheme)
-        }
+        let colorScheme = game.settings.preferredColorScheme.toColorScheme(system: systemColorScheme)
+        theme = Theme(type: game.settings.themeType, colorScheme: colorScheme)
     }
 }
 

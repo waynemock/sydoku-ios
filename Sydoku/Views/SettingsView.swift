@@ -28,7 +28,7 @@ struct SettingsView: View {
                         get: { theme.type },
                         set: { newValue in
                             theme = Theme(type: newValue, colorScheme: theme.colorScheme)
-                            game.settings.themeType = newValue.rawValue
+                            game.settings.themeType = newValue
                             game.saveSettings()
                         }
                     )) {
@@ -44,22 +44,14 @@ struct SettingsView: View {
                         get: { game.settings.preferredColorScheme },
                         set: { newValue in
                             game.settings.preferredColorScheme = newValue
-                            let colorScheme: ColorScheme
-                            switch newValue {
-                            case "light":
-                                colorScheme = .light
-                            case "dark":
-                                colorScheme = .dark
-                            default:
-                                colorScheme = systemColorScheme
-                            }
+                            let colorScheme = newValue.toColorScheme(system: systemColorScheme)
                             theme = Theme(type: theme.type, colorScheme: colorScheme)
                             game.saveSettings()
                         }
                     )) {
-                        Text("System").tag("system")
-                        Text("Light").tag("light")
-                        Text("Dark").tag("dark")
+                        ForEach(GameSettings.ColorSchemePreference.allCases, id: \.self) { preference in
+                            Text(preference.displayName).tag(preference)
+                        }
                     }
                     .foregroundColor(theme.primaryText)
                     .tint(theme.primaryAccent)
