@@ -213,9 +213,6 @@ struct StatisticsView: View {
                 )
             }
         }
-        #if os(macOS)
-        .frame(minWidth: 500, minHeight: 400)
-        #endif
     }
     
     /// Formats a time interval as a human-readable string.

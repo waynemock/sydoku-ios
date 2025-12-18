@@ -176,13 +176,9 @@ struct MainView: View {
             AboutView()
                 .environment(\.theme, theme)
         }
-        #if os(macOS)
-        .frame(minWidth: 700, minHeight: 850)
-        #else
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sensoryFeedback(.error, trigger: game.triggerErrorHaptic)
         .sensoryFeedback(.success, trigger: game.triggerSuccessHaptic)
-        #endif
         .alert(isPresented: Binding(
             get: { showingContinueAlert || showingExpiredDailyAlert },
             set: { if !$0 { showingContinueAlert = false; showingExpiredDailyAlert = false } }

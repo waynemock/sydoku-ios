@@ -10,33 +10,32 @@ struct AboutView: View {
     /// Environment theme.
     @Environment(\.theme) var theme
     
-    /// The app version from the bundle.
-    private var appVersion: String {
-        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
-        
-        if let build = build, build != version {
-            return "\(version) (\(build))"
-        }
-        return version
-    }
+
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(spacing: 30) {
+                VStack(spacing: 20) {
                     // App Icon and Name
                     VStack(spacing: 16) {
-                        // Custom 3x3 Sudoku grid with numbers
-                        MiniSudokuGrid()
-                            .frame(width: 100, height: 100)
+                        // App Icon or fallback to custom grid
+                        if let appIcon = Bundle.main.icon {
+                            Image(uiImage: appIcon)
+                                .resizable()
+                                .frame(width: 150, height: 150)
+                                .cornerRadius(22.5)
+                                .shadow(radius: 5)
+                        } else {
+                            MiniSudokuGrid()
+                                .frame(width: 150, height: 150)
+                        }
                         
                         Text("Sydoku")
                             .font(.largeTitle)
                             .fontWeight(.bold)
                             .foregroundColor(theme.primaryText)
                         
-                        Text("Version \(appVersion)")
+                        Text("Version \(Bundle.main.appVersion)")
                             .font(.subheadline)
                             .foregroundColor(theme.secondaryText)
                     }
@@ -51,7 +50,7 @@ struct AboutView: View {
                             .font(.headline)
                             .foregroundColor(theme.primaryText)
                         
-                        Text("A modern Sudoku puzzle game with beautiful themes, progressive hints, and daily challenges. Sharpen your logic skills with puzzles ranging from easy to hard difficulty.")
+                        Text("A beautifully designed Sudoku puzzle game featuring elegant themes, smart hints, and daily challenges. Master your logic skills with puzzles across multiple difficulty levels.")
                             .font(.body)
                             .foregroundColor(theme.secondaryText)
                             .multilineTextAlignment(.center)
@@ -69,10 +68,13 @@ struct AboutView: View {
                             .frame(maxWidth: .infinity, alignment: .center)
                         
                         FeatureRow(icon: "lightbulb.fill", text: "Progressive hint system", color: theme.warningColor)
-                        FeatureRow(icon: "calendar", text: "Daily challenges", color: theme.primaryAccent)
-                        FeatureRow(icon: "paintbrush.fill", text: "Beautiful themes", color: theme.secondaryAccent)
-                        FeatureRow(icon: "chart.bar.fill", text: "Statistics tracking", color: theme.successColor)
-                        FeatureRow(icon: "pencil.circle", text: "Pencil notes", color: theme.primaryAccent)
+                        FeatureRow(icon: "calendar", text: "Daily challenges with streaks", color: theme.primaryAccent)
+                        FeatureRow(icon: "paintbrush.fill", text: "Customizable themes", color: theme.secondaryAccent)
+                        FeatureRow(icon: "chart.bar.fill", text: "Comprehensive statistics", color: theme.successColor)
+                        FeatureRow(icon: "pencil.circle", text: "Smart pencil notes", color: theme.primaryAccent)
+                        FeatureRow(icon: "exclamationmark.triangle", text: "Auto error checking", color: theme.errorColor)
+                        FeatureRow(icon: "arrow.uturn.backward", text: "Unlimited undo/redo", color: theme.secondaryAccent)
+                        FeatureRow(icon: "hand.tap.fill", text: "Haptic feedback", color: theme.warningColor)
                     }
                     .padding(.horizontal, 30)
                     
@@ -88,6 +90,8 @@ struct AboutView: View {
                         Text("Made by humans and AI for puzzle lovers in Arvada, Colorado, USA, Earth.")
                             .font(.caption)
                             .foregroundColor(theme.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.vertical, 8)
                     }
                     .padding(.bottom, 40)
                 }
@@ -107,9 +111,6 @@ struct AboutView: View {
                 }
             }
         }
-        #if os(macOS)
-        .frame(minWidth: 800, minHeight: 1000)
-        #endif
     }
 }
 
@@ -119,4 +120,5 @@ struct AboutView: View {
     AboutView()
         .environment(\.theme, Theme(type: .sunset, colorScheme: .dark))
 }
+
 

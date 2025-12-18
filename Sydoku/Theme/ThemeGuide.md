@@ -34,6 +34,7 @@ struct MyView: View {
 | `selectedCellColor` | Selected cell background |
 | `highlightedCellColor` | Highlighted cell background |
 | `hintCellColor` | Hint cell background |
+| `glassGradient` | Gradient for glass/material effects |
 
 ### Creating Themed Buttons
 
@@ -52,6 +53,11 @@ Button("Tap Me") {
 ### Using Gradients
 
 ```swift
+// Using the built-in glass gradient
+Text("Glass Effect")
+    .foregroundStyle(theme.glassGradient)
+
+// Custom gradient with theme colors
 Text("Gradient Text")
     .foregroundStyle(
         .linearGradient(
@@ -73,23 +79,38 @@ VStack {
 
 ## Theme Types
 
-1. **Ocean** - Blues and teals
-2. **Sunset** - Oranges and pinks  
-3. **Forest** - Greens and earth tones
-4. **Midnight** - Purples and deep blues
-5. **Classic** - Traditional blue/cyan
+1. **Blossom** - Pinks and magentas (default theme)
+2. **Forest** - Greens and earth tones
+3. **Midnight** - Purples and deep blues
+4. **Ocean** - Blues and teals
+5. **Sunset** - Oranges and pinks  
+6. **Classic** - Neutral grays (adapts to light/dark mode)
 
 ## Adding a New Theme
 
 1. Add case to `Theme.ThemeType`:
 ```swift
 enum ThemeType: String, Codable, CaseIterable {
-    case myNewTheme = "My Theme"
+    case blossom = "Blossom"
+    case forest = "Forest"
+    case midnight = "Midnight"
+    case ocean = "Ocean"
+    case sunset = "Sunset"
+    case classic = "Classic"
+    case myNewTheme = "My Theme" // Add your new theme
 }
 ```
 
 2. Add color cases in Theme properties:
 ```swift
+var backgroundColor: Color {
+    switch type {
+    case .myNewTheme:
+        return colorScheme == .dark ? Color(red: 0.1, green: 0.1, blue: 0.2) : Color(red: 0.9, green: 0.9, blue: 0.95)
+    // ... other cases
+    }
+}
+
 var primaryAccent: Color {
     switch type {
     case .myNewTheme:
@@ -97,9 +118,21 @@ var primaryAccent: Color {
     // ... other cases
     }
 }
+
+// Repeat for all theme color properties
 ```
 
 3. Theme automatically appears in Settings!
+
+## Difficulty Colors
+
+Use the `color(for:)` method to get colors for difficulty levels:
+
+```swift
+let difficultyColor = theme.color(for: .easy)  // Returns successColor (green)
+let difficultyColor = theme.color(for: .medium)  // Returns warningColor (orange)
+let difficultyColor = theme.color(for: .hard)  // Returns errorColor (red)
+```
 
 ## Best Practices
 
