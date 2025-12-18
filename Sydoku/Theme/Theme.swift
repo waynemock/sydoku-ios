@@ -218,9 +218,9 @@ extension EnvironmentValues {
 /// Stores theme preferences for persistence.
 struct ThemePreference: Codable {
     var themeType: Theme.ThemeType
-    var preferredColorScheme: String // "light", "dark", or "system"
+    var preferredColorScheme: GameSettings.ColorSchemePreference
     
-    init(themeType: Theme.ThemeType = .blossom, preferredColorScheme: String = "dark") {
+    init(themeType: Theme.ThemeType = .blossom, preferredColorScheme: GameSettings.ColorSchemePreference = .dark) {
         self.themeType = themeType
         self.preferredColorScheme = preferredColorScheme
     }

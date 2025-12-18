@@ -10,6 +10,9 @@ struct MainView: View {
     /// The game instance managing puzzle state and logic.
     @StateObject private var game = SudokuGame()
     
+    /// The SwiftData model context for persistence operations.
+    @Environment(\.modelContext) private var modelContext
+    
     /// Whether the difficulty picker dialog is showing.
     @State private var showingNewGamePicker = false
     
@@ -224,6 +227,10 @@ struct MainView: View {
             }
         }
         .onAppear {
+            // Configure SwiftData persistence
+            let persistence = PersistenceService(modelContext: modelContext)
+            game.configurePersistence(persistenceService: persistence)
+            
             loadTheme()
             if game.hasSavedGame {
                 // Check if it's an expired daily challenge

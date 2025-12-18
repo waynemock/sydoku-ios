@@ -71,7 +71,7 @@ struct GameSettings: Codable {
     var completedDailyChallenges: [String: String] = [:]
     
     /// The selected theme type for the app.
-    var themeType: Theme.ThemeType = .sunset
+    var themeType: Theme.ThemeType = .blossom   
     
     /// The preferred color scheme: system, light, or dark.
     var preferredColorScheme: ColorSchemePreference = .dark

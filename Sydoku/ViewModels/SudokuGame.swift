@@ -116,6 +116,15 @@ class SudokuGame: ObservableObject {
     /// The date and time when the current game started.
     private var gameStartDate = Date()
     
+    /// Persistence service for SwiftData operations.
+    private var persistenceService: PersistenceService?
+    
+    /// SwiftData model for game statistics.
+    private var statsModel: GameStatistics?
+    
+    /// SwiftData model for user settings.
+    private var settingsModel: UserSettings?
+    
     // MARK: - Computed Properties
     
     /// The current puzzle's difficulty level.
@@ -155,32 +164,44 @@ class SudokuGame: ObservableObject {
     
     /// Initializes a new Sudoku game with empty boards.
     ///
-    /// Loads saved statistics, settings, and checks for a saved game to resume.
+    /// The persistence service should be configured after initialization
+    /// by calling `configurePersistence(persistenceService:)`.
     init() {
         board = Array(repeating: Array(repeating: 0, count: 9), count: 9)
         notes = Array(repeating: Array(repeating: Set<Int>(), count: 9), count: 9)
         solution = Array(repeating: Array(repeating: 0, count: 9), count: 9)
         initialBoard = Array(repeating: Array(repeating: 0, count: 9), count: 9)
-        loadStats()
-        loadSettings()
+    }
+    
+    // MARK: - Persistence Configuration
+    
+    /// Configures the persistence service and loads data from SwiftData.
+    ///
+    /// This should be called once after initialization, typically in the view's `onAppear`.
+    ///
+    /// - Parameter persistenceService: The persistence service to use for data operations.
+    func configurePersistence(persistenceService: PersistenceService) {
+        self.persistenceService = persistenceService
+        
+        // Load statistics
+        statsModel = persistenceService.fetchOrCreateStatistics()
+        stats = StatsAdapter.toStruct(from: statsModel!)
+        
+        // Load settings
+        settingsModel = persistenceService.fetchOrCreateSettings()
+        settings = SettingsAdapter.toStruct(from: settingsModel!)
+        
+        // Check for saved game
         checkForSavedGame()
     }
     
     // MARK: - Settings
     
-    /// Loads game settings from persistent storage.
-    private func loadSettings() {
-        if let data = UserDefaults.standard.data(forKey: "gameSettings"),
-           let loaded = try? JSONDecoder().decode(GameSettings.self, from: data) {
-            settings = loaded
-        }
-    }
-    
     /// Saves current game settings to persistent storage.
     func saveSettings() {
-        if let encoded = try? JSONEncoder().encode(settings) {
-            UserDefaults.standard.set(encoded, forKey: "gameSettings")
-        }
+        guard let settingsModel = settingsModel else { return }
+        SettingsAdapter.updateModel(settingsModel, from: settings)
+        persistenceService?.saveSettings(settingsModel)
     }
     
     // MARK: - Timer Management
@@ -236,7 +257,7 @@ class SudokuGame: ObservableObject {
             return
         }
         
-        let saved = SavedGame(
+        persistenceService?.saveGame(
             board: board,
             notes: notes,
             solution: solution,
@@ -248,11 +269,7 @@ class SudokuGame: ObservableObject {
             isDailyChallenge: isDailyChallenge,
             dailyChallengeDate: dailyChallengeDate
         )
-        
-        if let encoded = try? JSONEncoder().encode(saved) {
-            UserDefaults.standard.set(encoded, forKey: "savedGame")
-            hasSavedGame = true
-        }
+        hasSavedGame = true
     }
     
     func loadSavedGame() {
@@ -270,44 +287,36 @@ class SudokuGame: ObservableObject {
     }
     
     func deleteSavedGame() {
-        UserDefaults.standard.removeObject(forKey: "savedGame")
+        persistenceService?.deleteSavedGame()
         hasSavedGame = false
     }
     
     private func checkForSavedGame() {
-        hasSavedGame = UserDefaults.standard.data(forKey: "savedGame") != nil
-        
-        // Load the saved game for display (without starting the timer)
-        if hasSavedGame,
-           let data = UserDefaults.standard.data(forKey: "savedGame"),
-           let saved = try? JSONDecoder().decode(SavedGame.self, from: data),
-           let difficulty = Difficulty(rawValue: saved.difficulty) {
-            board = saved.board
-            notes = saved.notes
-            solution = saved.solution
-            initialBoard = saved.initialBoard
-            currentDifficulty = difficulty
-            elapsedTime = saved.elapsedTime
-            gameStartDate = saved.startDate
-            mistakes = saved.mistakes
-            isDailyChallenge = saved.isDailyChallenge
-            dailyChallengeDate = saved.dailyChallengeDate
-            // Don't start the timer - let the user decide to continue or start new
+        if let savedGame = persistenceService?.fetchSavedGame() {
+            board = SavedGameState.unflatten(savedGame.boardData)
+            notes = SavedGameState.decodeNotes(savedGame.notesData)
+            solution = SavedGameState.unflatten(savedGame.solutionData)
+            initialBoard = SavedGameState.unflatten(savedGame.initialBoardData)
+            if let difficulty = Difficulty(rawValue: savedGame.difficulty) {
+                currentDifficulty = difficulty
+            }
+            elapsedTime = savedGame.elapsedTime
+            gameStartDate = savedGame.startDate
+            mistakes = savedGame.mistakes
+            isDailyChallenge = savedGame.isDailyChallenge
+            dailyChallengeDate = savedGame.dailyChallengeDate
+            hasSavedGame = true
+        } else {
+            hasSavedGame = false
         }
     }
     
     // MARK: - Statistics
-    private func loadStats() {
-        if let data = UserDefaults.standard.data(forKey: "gameStats"),
-           let loaded = try? JSONDecoder().decode(GameStats.self, from: data) {
-            stats = loaded
-        }
-    }
     
     private func saveStats() {
-        if let encoded = try? JSONEncoder().encode(stats) {
-            UserDefaults.standard.set(encoded, forKey: "gameStats")
-        }
+        guard let statsModel = statsModel else { return }
+        StatsAdapter.updateModel(statsModel, from: stats)
+        persistenceService?.saveStatistics(statsModel)
     }
     
     func resetStats() {
