@@ -9,6 +9,9 @@ struct SudokuBoard: View {
     /// The Sudoku game instance managing the board state.
     @ObservedObject var game: SudokuGame
     
+    /// The fixed size for each cell to prevent dynamic sizing issues.
+    let cellSize: CGFloat
+    
     var body: some View {
         VStack(spacing: 0) {
             ForEach(0..<9, id: \.self) { row in
@@ -23,6 +26,7 @@ struct SudokuBoard: View {
                             isHighlighted: game.settings.highlightSameNumbers && game.highlightedNumber != nil && game.board[row][col] == game.highlightedNumber,
                             isLastPlaced: game.lastPlacedCell?.row == row && game.lastPlacedCell?.col == col,
                             isHintCell: game.hintCell?.row == row && game.hintCell?.col == col,
+                            cellSize: cellSize,
                             action: {
                                 game.selectedCell = (row, col)
                                 // Highlight the number if the cell has one
@@ -34,6 +38,8 @@ struct SudokuBoard: View {
                                 }
                             }
                         )
+                        .frame(width: cellSize, height: cellSize)
+                        .clipped()
                         .border(
                             width: BorderWidths(
                                 leading: col % 3 == 0 ? 2 : 0.5,

@@ -168,6 +168,9 @@ struct NewGamePicker: ViewModifier {
     /// Binding to control the presentation of the difficulty picker.
     @Binding var isPresented: Bool
     
+    /// The theme to use for styling.
+    let theme: Theme
+    
     func body(content: Content) -> some View {
         content
             .overlay {
@@ -186,6 +189,7 @@ struct NewGamePicker: ViewModifier {
                         
                         // Alert content
                         NewGameView(game: game, isPresented: $isPresented)
+                            .environment(\.theme, theme)
                             .transition(.scale.combined(with: .opacity))
                     }
                     .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPresented)
@@ -200,8 +204,9 @@ extension View {
     /// - Parameters:
     ///   - isPresented: A binding to control the presentation of the dialog.
     ///   - game: The game instance to use for generating puzzles.
+    ///   - theme: The theme to use for styling.
     /// - Returns: A view with the difficulty picker modifier applied.
-    func newGamePicker(isPresented: Binding<Bool>, game: SudokuGame) -> some View {
-        modifier(NewGamePicker(game: game, isPresented: isPresented))
+    func newGamePicker(isPresented: Binding<Bool>, game: SudokuGame, theme: Theme) -> some View {
+        modifier(NewGamePicker(game: game, isPresented: isPresented, theme: theme))
     }
 }

@@ -26,24 +26,24 @@ struct StatisticsView: View {
                     .fontWeight(.semibold)) {
                     HStack {
                         Image(systemName: "flame.fill")
-                            .foregroundColor(theme.warningColor)
+                            .foregroundColor(theme.primaryAccent)
                         Text("Current Streak")
                             .foregroundColor(theme.primaryText)
                         Spacer()
                         Text("\(game.stats.dailyChallengeStats.currentDailyStreak) days")
-                            .foregroundColor(theme.warningColor)
+                            .foregroundColor(theme.primaryAccent)
                             .fontWeight(.semibold)
                     }
                     .listRowBackground(theme.cellBackgroundColor)
                     
                     HStack {
                         Image(systemName: "trophy.fill")
-                            .foregroundColor(theme.successColor)
+                            .foregroundColor(theme.primaryAccent)
                         Text("Best Streak")
                             .foregroundColor(theme.primaryText)
                         Spacer()
                         Text("\(game.stats.dailyChallengeStats.bestDailyStreak) days")
-                            .foregroundColor(theme.successColor)
+                            .foregroundColor(theme.primaryAccent)
                             .fontWeight(.semibold)
                     }
                     .listRowBackground(theme.cellBackgroundColor)
@@ -81,7 +81,7 @@ struct StatisticsView: View {
                                     if let bestTime = game.stats.dailyChallengeStats.bestDailyTimes[difficulty.rawValue] {
                                         Label(formatTime(bestTime), systemImage: "bolt.fill")
                                             .font(.caption)
-                                            .foregroundColor(theme.successColor)
+                                            .foregroundColor(theme.primaryAccent)
                                     }
                                     
                                     Spacer()
@@ -108,7 +108,7 @@ struct StatisticsView: View {
                             .foregroundColor(theme.primaryText)
                         Spacer()
                         Text("\(game.stats.currentStreak)")
-                            .foregroundColor(theme.warningColor)
+                            .foregroundColor(theme.primaryAccent)
                             .fontWeight(.semibold)
                     }
                     .listRowBackground(theme.cellBackgroundColor)
@@ -118,7 +118,7 @@ struct StatisticsView: View {
                             .foregroundColor(theme.primaryText)
                         Spacer()
                         Text("\(game.stats.bestStreak)")
-                            .foregroundColor(theme.warningColor)
+                            .foregroundColor(theme.primaryAccent)
                             .fontWeight(.semibold)
                     }
                     .listRowBackground(theme.cellBackgroundColor)
@@ -134,7 +134,7 @@ struct StatisticsView: View {
                                 .foregroundColor(theme.primaryText)
                             Spacer()
                             Text("\(game.stats.gamesPlayed[difficulty.rawValue] ?? 0)")
-                                .foregroundColor(theme.secondaryText)
+                                .foregroundColor(theme.primaryAccent)
                         }
                         .listRowBackground(theme.cellBackgroundColor)
                         
@@ -143,7 +143,7 @@ struct StatisticsView: View {
                                 .foregroundColor(theme.primaryText)
                             Spacer()
                             Text("\(game.stats.gamesCompleted[difficulty.rawValue] ?? 0)")
-                                .foregroundColor(theme.successColor)
+                                .foregroundColor(theme.primaryAccent)
                         }
                         .listRowBackground(theme.cellBackgroundColor)
                         

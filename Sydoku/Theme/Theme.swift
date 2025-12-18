@@ -9,17 +9,18 @@ struct Theme {
     
     /// Available theme options for the app.
     enum ThemeType: String, Codable, CaseIterable {
-        case ocean = "Ocean"
-        case sunset = "Sunset"
+        case blossom = "Blossom"
         case forest = "Forest"
         case midnight = "Midnight"
+        case ocean = "Ocean"
+        case sunset = "Sunset"
         case classic = "Classic"
         
         /// User-friendly display name for the theme.
         var displayName: String { rawValue }
     }
     
-    // MARK: - Properties
+    // MARK: - Propertiest
     
     /// The current theme type.
     var type: ThemeType
@@ -40,6 +41,8 @@ struct Theme {
             return colorScheme == .dark ? Color(red: 0.08, green: 0.15, blue: 0.10) : Color(red: 0.92, green: 0.96, blue: 0.93)
         case .midnight:
             return colorScheme == .dark ? Color(red: 0.05, green: 0.05, blue: 0.08) : Color(red: 0.85, green: 0.85, blue: 0.90)
+        case .blossom:
+            return colorScheme == .dark ? Color(red: 0.18, green: 0.10, blue: 0.15) : Color(red: 0.98, green: 0.93, blue: 0.96)
         case .classic:
             return colorScheme == .dark ? Color(red: 0.15, green: 0.15, blue: 0.17) : Color(red: 0.95, green: 0.95, blue: 0.97)
         }
@@ -56,6 +59,8 @@ struct Theme {
             return colorScheme == .dark ? Color(red: 0.15, green: 0.22, blue: 0.17) : Color(red: 0.96, green: 0.98, blue: 0.96)
         case .midnight:
             return colorScheme == .dark ? Color(red: 0.10, green: 0.10, blue: 0.15) : Color(red: 0.92, green: 0.92, blue: 0.95)
+        case .blossom:
+            return colorScheme == .dark ? Color(red: 0.25, green: 0.18, blue: 0.22) : Color(red: 0.99, green: 0.96, blue: 0.98)
         case .classic:
             return colorScheme == .dark ? Color(red: 0.25, green: 0.25, blue: 0.27) : Color.white
         }
@@ -72,8 +77,10 @@ struct Theme {
             return Color(red: 0.30, green: 0.70, blue: 0.45)
         case .midnight:
             return Color(red: 0.60, green: 0.50, blue: 0.90)
+        case .blossom:
+            return Color(red: 0.95, green: 0.40, blue: 0.70)
         case .classic:
-            return Color.blue
+            return colorScheme == .dark ? Color(red: 0.70, green: 0.70, blue: 0.70) : Color(red: 0.30, green: 0.30, blue: 0.30)
         }
     }
     
@@ -88,8 +95,10 @@ struct Theme {
             return Color(red: 0.50, green: 0.85, blue: 0.40)
         case .midnight:
             return Color(red: 0.70, green: 0.60, blue: 0.95)
+        case .blossom:
+            return Color(red: 0.98, green: 0.60, blue: 0.85)
         case .classic:
-            return Color.cyan
+            return colorScheme == .dark ? Color(red: 0.50, green: 0.50, blue: 0.50) : Color(red: 0.45, green: 0.45, blue: 0.45)
         }
     }
     
@@ -162,7 +171,7 @@ struct Theme {
     /// - Parameters:
     ///   - type: The theme type to use.
     ///   - colorScheme: The color scheme (light or dark).
-    init(type: ThemeType = .classic, colorScheme: ColorScheme = .dark) {
+    init(type: ThemeType = .blossom, colorScheme: ColorScheme = .dark) {
         self.type = type
         self.colorScheme = colorScheme
     }
@@ -211,7 +220,7 @@ struct ThemePreference: Codable {
     var themeType: Theme.ThemeType
     var preferredColorScheme: String // "light", "dark", or "system"
     
-    init(themeType: Theme.ThemeType = .classic, preferredColorScheme: String = "dark") {
+    init(themeType: Theme.ThemeType = .blossom, preferredColorScheme: String = "dark") {
         self.themeType = themeType
         self.preferredColorScheme = preferredColorScheme
     }

@@ -18,13 +18,12 @@ struct PauseOverlay: View {
         ZStack {
             // Blurred background
             Color.black.opacity(0.7)
-                .ignoresSafeArea()
                 .blur(radius: isAnimating ? 0 : 20)
             
             // Glass card container
-            VStack(spacing: 30) {
+            VStack(spacing: 20) {
                 Image(systemName: "pause.circle.fill")
-                    .font(.system(size: 80))
+                    .font(.system(size: 60))
                     .foregroundStyle(
                         .linearGradient(
                             colors: [theme.primaryAccent, theme.secondaryAccent],
@@ -35,14 +34,14 @@ struct PauseOverlay: View {
                     .shadow(color: theme.primaryAccent.opacity(0.5), radius: 20)
                 
                 Text("Game Paused")
-                    .font(.largeTitle.weight(.bold))
+                    .font(.title.weight(.bold))
                     .foregroundColor(theme.primaryText)
                 
                 Text(game.formattedTime)
-                    .font(.system(.title2, design: .monospaced, weight: .medium))
+                    .font(.system(.title3, design: .monospaced, weight: .medium))
                     .foregroundColor(theme.secondaryText)
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 12)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 12)
                             .fill(theme.primaryAccent.opacity(0.2))
@@ -53,14 +52,14 @@ struct PauseOverlay: View {
                         game.resumeTimer()
                     }
                 }) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 10) {
                         Image(systemName: "play.fill")
                         Text("Resume")
                     }
-                    .font(.title2.weight(.semibold))
+                    .font(.title3.weight(.semibold))
                     .foregroundColor(.white)
-                    .padding(.horizontal, 40)
-                    .padding(.vertical, 16)
+                    .padding(.horizontal, 32)
+                    .padding(.vertical, 14)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(
@@ -75,9 +74,9 @@ struct PauseOverlay: View {
                 }
                 .buttonStyle(ScaleButtonStyle())
             }
-            .padding(40)
+            .padding(32)
             .background(
-                RoundedRectangle(cornerRadius: 30)
+                RoundedRectangle(cornerRadius: 24)
                     .fill(.ultraThinMaterial)
                     .shadow(color: Color.black.opacity(0.3), radius: 30, y: 10)
             )
