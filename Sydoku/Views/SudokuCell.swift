@@ -29,6 +29,9 @@ struct SudokuCell: View {
     /// Whether this cell is highlighted as part of a hint.
     let isHintCell: Bool
     
+    /// The size of the cell for responsive font sizing.
+    let cellSize: CGFloat
+    
     /// The action to perform when the cell is tapped.
     let action: () -> Void
     
@@ -41,26 +44,23 @@ struct SudokuCell: View {
                 // Background with gradient for depth
                 RoundedRectangle(cornerRadius: 2)
                     .fill(backgroundColor)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 2)
-                            .stroke(borderColor, lineWidth: isSelected ? 2 : 0)
-                    )
                 
                 if value != 0 {
                     // Display the cell's value
                     Text("\(value)")
-                        .font(.title2.weight(isInitial ? .bold : .semibold))
+                        .font(.custom("Papyrus", size: cellSize * 0.6))
+                        .fontWeight(isInitial ? .bold : .semibold)
                         .foregroundStyle(textColor)
+                        .baselineOffset(-cellSize * 0.05)
                         .scaleEffect(isLastPlaced ? 1.3 : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isLastPlaced)
                         .shadow(color: hasConflict ? theme.errorColor.opacity(0.3) : Color.clear, radius: 4)
                 } else if !cellNotes.isEmpty {
                     // Display pencil mark notes
-                    NotesGrid(notes: cellNotes, theme: theme)
+                    NotesGrid(notes: cellNotes, cellSize: cellSize, theme: theme)
                 }
             }
         }
-        .aspectRatio(1, contentMode: .fit)
         .buttonStyle(CellButtonStyle())
     }
     
@@ -110,8 +110,20 @@ struct NotesGrid: View {
     /// The set of numbers to display as notes.
     let notes: Set<Int>
     
+    /// The size of the cell for responsive font sizing.
+    let cellSize: CGFloat
+    
     /// The theme for styling.
     let theme: Theme
+    
+    /// Calculate responsive font size based on cell size
+    private var fontSize: CGFloat {
+        // Scale font size proportionally to cell size
+        // Base: 40pt cell = 8pt font, scale up from there
+        let baseCellSize: CGFloat = 40
+        let baseFontSize: CGFloat = 8
+        return max(baseFontSize, (cellSize / baseCellSize) * baseFontSize)
+    }
     
     var body: some View {
         VStack(spacing: 1) {
@@ -120,7 +132,7 @@ struct NotesGrid: View {
                     ForEach(1...3, id: \.self) { col in
                         let num = row * 3 + col
                         Text(notes.contains(num) ? "\(num)" : "")
-                            .font(.caption2.weight(.medium))
+                            .font(.system(size: fontSize, weight: .medium))
                             .foregroundColor(theme.secondaryText)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }

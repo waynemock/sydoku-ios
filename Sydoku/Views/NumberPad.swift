@@ -59,13 +59,13 @@ struct NumberPad: View {
                             RoundedRectangle(cornerRadius: 12)
                                 .fill(
                                     LinearGradient(
-                                        colors: [theme.errorColor, theme.errorColor.opacity(0.8)],
+                                        colors: [theme.primaryAccent.opacity(0.5), theme.primaryAccent.opacity(0.4)],
                                         startPoint: .topLeading,
                                         endPoint: .bottomTrailing
                                     )
                                 )
                         )
-                        .shadow(color: theme.errorColor.opacity(0.3), radius: 5, y: 3)
+                        .shadow(color: theme.primaryAccent.opacity(0.15), radius: 5, y: 3)
                 }
                 .buttonStyle(ScaleButtonStyle())
             }

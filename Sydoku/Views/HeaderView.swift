@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The header section containing app title, timer, and action buttons.
 ///
-/// Displays the app name, daily challenge indicator, timer with pause button (always centered),
+/// Displays the app name, daily challenge indicator, timer with pause button (always centered on iPad, below board on iPhone),
 /// and action menus for creating new games and accessing tools/settings.
 struct HeaderView: View {
     /// The game instance managing puzzle state and logic.
@@ -29,19 +29,24 @@ struct HeaderView: View {
     /// Binding to show/hide the error checking toast.
     @Binding var showingErrorCheckingToast: Bool
     
+    /// Environment horizontal size class to detect iPhone vs iPad.
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
     var body: some View {
         ZStack {
-            // Centered timer (always centered regardless of sides)
-            TimerButtonView(game: game, theme: theme)
+            // Centered timer (only on iPad)
+            if horizontalSizeClass == .regular {
+                TimerButtonView(game: game, theme: theme)
+            }
             
             // Left and right content
             HStack {
                 // Left side: Title and puzzle info
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 8) {
                         Text("Sydoku")
                             .foregroundColor(theme.primaryText)
-                            .font(.largeTitle)
+                            .font(.custom("Papyrus", size: 34))
                             .fontWeight(.bold)
                     }
                     
@@ -50,13 +55,14 @@ struct HeaderView: View {
                         Text(game.isDailyChallenge ? "Daily Challenge • \(game.difficulty.name)" : game.difficulty.name)
                             .font(.subheadline)
                             .foregroundColor(theme.secondaryText)
+                            .offset(y: -4)
                     }
                 }
                 
                 Spacer()
                 
                 // Right side: Action buttons
-                HStack(spacing: 8) {
+                HStack(spacing: 12) {
                     // New game button
                     Button(action: {
                         // Check if we're at launch with a saved game
@@ -72,76 +78,23 @@ struct HeaderView: View {
                             showingNewGamePicker = true
                         }
                     }) {
-                        Image(systemName: "plus")
-                            .font(.title3.weight(.semibold))
-                            .foregroundColor(.white)
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 40))
+                            .foregroundColor(theme.primaryAccent)
                             .frame(width: 44, height: 44)
-                            .background(
-                                Circle()
-                                    .fill(theme.successColor)
-                            )
                     }
                     .disabled(game.isGenerating)
                     .buttonStyle(.plain)
                     
                     // Tools menu button
-                    Menu {
-                        Button(action: { game.giveHint() }) {
-                            Label("Show Hint", systemImage: "lightbulb")
-                        }
-                        .disabled(game.isGenerating || game.isComplete || game.isPaused || game.isGameOver)
-                        
-                        Button(action: { game.autoFillNotes() }) {
-                            Label("Auto Notes", systemImage: "wand.and.stars")
-                        }
-                        .disabled(game.isGenerating || game.isPaused || game.isGameOver)
-                        
-                        Button(action: { game.clearAllNotes() }) {
-                            Label("Clear Notes", systemImage: "trash")
-                        }
-                        .disabled(game.isGenerating || game.isPaused || game.isGameOver)
-
-                        Divider()
-                        
-                        Button(action: {
-                            game.settings.autoErrorChecking.toggle()
-                            game.saveSettings()
-                            
-                            // Show toast feedback
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                showingErrorCheckingToast = true
-                            }
-                        }) {
-                            Label("Auto Error Checking", systemImage: game.settings.autoErrorChecking ? "checkmark.circle.fill" : "circle")
-                        }
-                        
-                        Divider()
-                        
-                        Button(action: { showingStats = true }) {
-                            Label("Statistics", systemImage: "chart.bar.fill")
-                        }
-                        
-                        Button(action: { showingSettings = true }) {
-                            Label("Settings", systemImage: "gearshape.fill")
-                        }
-                        
-                        Divider()
-                        
-                        Button(action: { showingAbout = true }) {
-                            Label("About Sydoku", systemImage: "info.circle")
-                        }
-                        
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .font(.system(size: 32))
-                            .foregroundColor(theme.primaryAccent)
-                            .frame(width: 44, height: 44)
-                    }
-                    .menuStyle(.button)
-                    .fixedSize()
-                    .transaction { transaction in
-                        transaction.animation = nil
-                    }
+                    MenuButtonView(
+                        game: game,
+                        theme: theme,
+                        showingStats: $showingStats,
+                        showingSettings: $showingSettings,
+                        showingAbout: $showingAbout,
+                        showingErrorCheckingToast: $showingErrorCheckingToast
+                    )
                 }
             }
         }

@@ -24,12 +24,11 @@ struct GameOverOverlay: View {
         ZStack {
             // Blurred background
             Color.black.opacity(0.8)
-                .ignoresSafeArea()
             
             // Glass card container
-            VStack(spacing: 25) {
+            VStack(spacing: 18) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 70))
+                    .font(.system(size: 56))
                     .foregroundStyle(
                         .linearGradient(
                             colors: [theme.errorColor, theme.errorColor.opacity(0.7)],
@@ -42,18 +41,18 @@ struct GameOverOverlay: View {
                     .rotationEffect(.degrees(isAnimating ? 0 : -180))
                 
                 Text("Game Over")
-                    .font(.largeTitle.weight(.bold))
+                    .font(.title.weight(.bold))
                     .foregroundColor(theme.primaryText)
                 
                 Text("Too many mistakes!")
-                    .font(.title3)
+                    .font(.headline)
                     .foregroundColor(theme.secondaryText)
                 
                 Text(game.mistakesText)
-                    .font(.system(.body, design: .monospaced, weight: .medium))
+                    .font(.system(.callout, design: .monospaced, weight: .medium))
                     .foregroundColor(theme.errorColor)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
                             .fill(theme.errorColor.opacity(0.2))
@@ -64,14 +63,14 @@ struct GameOverOverlay: View {
                         showingNewGamePicker = true
                     }
                 }) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: 10) {
                         Image(systemName: "arrow.clockwise")
                         Text("Try Again")
                     }
-                    .font(.title3.weight(.semibold))
+                    .font(.headline.weight(.semibold))
                     .foregroundColor(.white)
-                    .padding(.horizontal, 35)
-                    .padding(.vertical, 14)
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 12)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(
@@ -86,9 +85,9 @@ struct GameOverOverlay: View {
                 }
                 .buttonStyle(ScaleButtonStyle())
             }
-            .padding(40)
+            .padding(32)
             .background(
-                RoundedRectangle(cornerRadius: 30)
+                RoundedRectangle(cornerRadius: 24)
                     .fill(.ultraThinMaterial)
                     .shadow(color: Color.black.opacity(0.3), radius: 30, y: 10)
             )

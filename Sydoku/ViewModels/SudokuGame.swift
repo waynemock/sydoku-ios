@@ -8,6 +8,8 @@ import Combine
 /// puzzle generation, user interactions, timer, statistics, undo/redo, hints,
 /// daily challenges, and game settings.
 class SudokuGame: ObservableObject {
+    static let numberOfCells = 81
+    
     // MARK: - Published Properties
     
     /// The current state of the game board (9x9 grid).
@@ -229,6 +231,11 @@ class SudokuGame: ObservableObject {
     }
     
     func saveGame() {
+        // Don't save if the game is already complete or game over
+        if isComplete || isGameOver {
+            return
+        }
+        
         let saved = SavedGame(
             board: board,
             notes: notes,
@@ -358,6 +365,8 @@ class SudokuGame: ObservableObject {
         currentDifficulty = difficulty
         self.isDailyChallenge = isDailyChallenge
         
+        print("🎮 Starting puzzle generation: \(difficulty.name) - Target: \(difficulty.cellsToRemove) cells to remove, \(difficulty.numberOfClues) clues")
+        
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
@@ -391,6 +400,18 @@ class SudokuGame: ObservableObject {
     ///   - board: The puzzle grid with cells removed.
     ///   - difficulty: The difficulty level of the puzzle.
     private func finalizePuzzleGeneration(solution: [[Int]], board: [[Int]], difficulty: Difficulty) {
+        // Count actual clues in the generated board
+        var actualClues = 0
+        for row in board {
+            for cell in row {
+                if cell != 0 {
+                    actualClues += 1
+                }
+            }
+        }
+        
+        print("✅ Puzzle finalized: \(difficulty.name) - Expected: \(difficulty.numberOfClues) clues, Actual: \(actualClues) clues")
+        
         self.solution = solution
         self.board = board
         self.notes = Array(repeating: Array(repeating: Set<Int>(), count: 9), count: 9)
@@ -477,66 +498,106 @@ class SudokuGame: ObservableObject {
     
     private func removeNumbersWithUniqueness(from solution: [[Int]], count: Int, using generator: inout SeededRandomNumberGenerator) -> [[Int]] {
         var puzzle = solution
-        var positions = [(Int, Int)]()
-        
-        for r in 0..<9 {
-            for c in 0..<9 {
-                positions.append((r, c))
-            }
-        }
-        positions.shuffle(using: &generator)
-        
         var removed = 0
-        var attempts = 0
-        let maxAttempts = 81 * 2
+        var passCount = 0
+        let maxPasses = 5
         
-        for (r, c) in positions {
-            if removed >= count { break }
-            if attempts >= maxAttempts { break }
+        print("🔄 Starting multi-pass removal (target: \(count) cells)")
+        
+        while removed < count && passCount < maxPasses {
+            passCount += 1
+            var positions = [(Int, Int)]()
             
-            attempts += 1
-            let backup = puzzle[r][c]
-            puzzle[r][c] = 0
+            // Collect all non-zero positions
+            for r in 0..<9 {
+                for c in 0..<9 {
+                    if puzzle[r][c] != 0 {
+                        positions.append((r, c))
+                    }
+                }
+            }
             
-            if hasUniqueSolution(puzzle) {
-                removed += 1
-            } else {
-                puzzle[r][c] = backup
+            positions.shuffle(using: &generator)
+            var removedThisPass = 0
+            
+            for (r, c) in positions {
+                if removed >= count { break }
+                
+                let backup = puzzle[r][c]
+                puzzle[r][c] = 0
+                
+                if hasUniqueSolution(puzzle) {
+                    removed += 1
+                    removedThisPass += 1
+                } else {
+                    puzzle[r][c] = backup
+                }
+            }
+            
+            print("   Pass \(passCount): Removed \(removedThisPass) cells (total: \(removed)/\(count))")
+            
+            // If we made no progress, break early
+            if removedThisPass == 0 {
+                print("   ⚠️ No progress made, stopping early")
+                break
             }
         }
+        
+        let cluesRemaining = Self.numberOfCells - removed
+        print("🎯 Puzzle Generation (Seeded): Removed \(removed)/\(count) cells, \(cluesRemaining) clues remaining")
         
         return puzzle
     }
     
     private func removeNumbersWithUniqueness(from solution: [[Int]], count: Int) -> [[Int]] {
         var puzzle = solution
-        var positions = [(Int, Int)]()
-        
-        for r in 0..<9 {
-            for c in 0..<9 {
-                positions.append((r, c))
-            }
-        }
-        positions.shuffle()
-        
         var removed = 0
-        var attempts = 0
-        let maxAttempts = 81 * 2
+        var passCount = 0
+        let maxPasses = 5
         
-        for (r, c) in positions {
-            if removed >= count { break }
-            if attempts >= maxAttempts { break }
+        print("🔄 Starting multi-pass removal (target: \(count) cells)")
+        
+        while removed < count && passCount < maxPasses {
+            passCount += 1
+            var positions = [(Int, Int)]()
             
-            attempts += 1
-            let backup = puzzle[r][c]
-            puzzle[r][c] = 0
+            // Collect all non-zero positions
+            for r in 0..<9 {
+                for c in 0..<9 {
+                    if puzzle[r][c] != 0 {
+                        positions.append((r, c))
+                    }
+                }
+            }
             
-            if hasUniqueSolution(puzzle) {
-                removed += 1
-            } else {
-                puzzle[r][c] = backup
+            positions.shuffle()
+            var removedThisPass = 0
+            
+            for (r, c) in positions {
+                if removed >= count { break }
+                
+                let backup = puzzle[r][c]
+                puzzle[r][c] = 0
+                
+                if hasUniqueSolution(puzzle) {
+                    removed += 1
+                    removedThisPass += 1
+                } else {
+                    puzzle[r][c] = backup
+                }
+            }
+            
+            print("   Pass \(passCount): Removed \(removedThisPass) cells (total: \(removed)/\(count))")
+            
+            // If we made no progress, break early
+            if removedThisPass == 0 {
+                print("   ⚠️ No progress made, stopping early")
+                break
             }
         }
+        
+        let cluesRemaining = Self.numberOfCells - removed
+        print("🎯 Puzzle Generation: Removed \(removed)/\(count) cells, \(cluesRemaining) clues remaining")
         
         return puzzle
     }
@@ -624,6 +685,9 @@ class SudokuGame: ObservableObject {
                 notes[cell.row][cell.col].removeAll()
                 lastPlacedCell = cell
                 
+                // Remove this number from notes in related cells
+                removeNumberFromRelatedNotes(row: cell.row, col: cell.col, num: num)
+                
                 if settings.autoErrorChecking && num != solution[cell.row][cell.col] {
                     mistakes += 1
                     if settings.hapticFeedback {
@@ -673,6 +737,36 @@ class SudokuGame: ObservableObject {
                         }
                     }
                 }
+            }
+        }
+    }
+    
+    /// Removes a number from notes in all cells related to the given position.
+    ///
+    /// When a number is placed in a cell, this function removes that number
+    /// from the notes of all cells in the same row, column, and 3x3 box.
+    ///
+    /// - Parameters:
+    ///   - row: The row of the cell where the number was placed.
+    ///   - col: The column of the cell where the number was placed.
+    ///   - num: The number that was placed.
+    private func removeNumberFromRelatedNotes(row: Int, col: Int, num: Int) {
+        // Remove from same row
+        for c in 0..<9 {
+            notes[row][c].remove(num)
+        }
+        
+        // Remove from same column
+        for r in 0..<9 {
+            notes[r][col].remove(num)
+        }
+        
+        // Remove from same 3x3 box
+        let boxRow = (row / 3) * 3
+        let boxCol = (col / 3) * 3
+        for r in boxRow..<boxRow + 3 {
+            for c in boxCol..<boxCol + 3 {
+                notes[r][c].remove(num)
             }
         }
     }
@@ -838,7 +932,7 @@ class SudokuGame: ObservableObject {
     }
     
     func loadFromCode(_ code: String) -> Bool {
-        guard code.count == 81 else { return false }
+        guard code.count == Self.numberOfCells else { return false }
         
         var newBoard = Array(repeating: Array(repeating: 0, count: 9), count: 9)
         var index = 0

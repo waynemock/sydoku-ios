@@ -76,56 +76,22 @@ struct NewGameView: View {
             
             // Difficulty buttons
             VStack(spacing: 12) {
-                DifficultyButton(
-                    difficulty: .easy,
-                    clues: 46,
-                    color: theme.successColor,
-                    isDailyMode: isDailyMode,
-                    isCompleted: game.isDailyChallengeCompleted(for: .easy),
-                    theme: theme,
-                    action: {
-                        if isDailyMode {
-                            game.generateDailyChallenge(difficulty: .easy)
-                        } else {
-                            game.generatePuzzle(difficulty: .easy)
+                ForEach(Difficulty.allCases, id: \.self) { difficulty in
+                    DifficultyButton(
+                        difficulty: difficulty,
+                        isDailyMode: isDailyMode,
+                        isCompleted: game.isDailyChallengeCompleted(for: difficulty),
+                        theme: theme,
+                        action: {
+                            if isDailyMode {
+                                game.generateDailyChallenge(difficulty: difficulty)
+                            } else {
+                                game.generatePuzzle(difficulty: difficulty)
+                            }
+                            isPresented = false
                         }
-                        isPresented = false
-                    }
-                )
-                
-                DifficultyButton(
-                    difficulty: .medium,
-                    clues: 36,
-                    color: theme.warningColor,
-                    isDailyMode: isDailyMode,
-                    isCompleted: game.isDailyChallengeCompleted(for: .medium),
-                    theme: theme,
-                    action: {
-                        if isDailyMode {
-                            game.generateDailyChallenge(difficulty: .medium)
-                        } else {
-                            game.generatePuzzle(difficulty: .medium)
-                        }
-                        isPresented = false
-                    }
-                )
-                
-                DifficultyButton(
-                    difficulty: .hard,
-                    clues: 29,
-                    color: theme.errorColor,
-                    isDailyMode: isDailyMode,
-                    isCompleted: game.isDailyChallengeCompleted(for: .hard),
-                    theme: theme,
-                    action: {
-                        if isDailyMode {
-                            game.generateDailyChallenge(difficulty: .hard)
-                        } else {
-                            game.generatePuzzle(difficulty: .hard)
-                        }
-                        isPresented = false
-                    }
-                )
+                    )
+                }
             }
             
             // Cancel button (only show if there's an active game)
@@ -155,8 +121,6 @@ struct NewGameView: View {
 /// A button for selecting a difficulty level, with optional completion indicator.
 struct DifficultyButton: View {
     let difficulty: Difficulty
-    let clues: Int
-    let color: Color
     let isDailyMode: Bool
     let isCompleted: Bool
     let theme: Theme
@@ -169,7 +133,7 @@ struct DifficultyButton: View {
                     Text(difficulty.name)
                         .font(.body.weight(.semibold))
                         .foregroundColor(theme.primaryText)
-                    Text("\(clues) clues")
+                    Text("\(difficulty.numberOfClues) clues")
                         .font(.caption)
                         .foregroundColor(theme.secondaryText)
                 }
@@ -180,7 +144,7 @@ struct DifficultyButton: View {
                 if isDailyMode && isCompleted {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.title3)
-                        .foregroundColor(color)
+                        .foregroundColor(theme.color(for: difficulty))
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -188,7 +152,7 @@ struct DifficultyButton: View {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(color.opacity(0.2))
+                    .fill(theme.color(for: difficulty).opacity(0.2))
             )
         }
         .buttonStyle(.plain)
@@ -203,6 +167,9 @@ struct NewGamePicker: ViewModifier {
     
     /// Binding to control the presentation of the difficulty picker.
     @Binding var isPresented: Bool
+    
+    /// The theme to use for styling.
+    let theme: Theme
     
     func body(content: Content) -> some View {
         content
@@ -222,6 +189,7 @@ struct NewGamePicker: ViewModifier {
                         
                         // Alert content
                         NewGameView(game: game, isPresented: $isPresented)
+                            .environment(\.theme, theme)
                             .transition(.scale.combined(with: .opacity))
                     }
                     .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isPresented)
@@ -236,8 +204,9 @@ extension View {
     /// - Parameters:
     ///   - isPresented: A binding to control the presentation of the dialog.
     ///   - game: The game instance to use for generating puzzles.
+    ///   - theme: The theme to use for styling.
     /// - Returns: A view with the difficulty picker modifier applied.
-    func newGamePicker(isPresented: Binding<Bool>, game: SudokuGame) -> some View {
-        modifier(NewGamePicker(game: game, isPresented: isPresented))
+    func newGamePicker(isPresented: Binding<Bool>, game: SudokuGame, theme: Theme) -> some View {
+        modifier(NewGamePicker(game: game, isPresented: isPresented, theme: theme))
     }
 }

@@ -37,6 +37,14 @@ struct MainView: View {
     /// The environment color scheme.
     @Environment(\.colorScheme) var systemColorScheme
     
+    /// The horizontal size class for responsive layout.
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    /// Whether to show the mistakes counter.
+    private var showMistakes: Bool {
+        game.settings.autoErrorChecking && (game.settings.mistakeLimit > 0 || game.mistakes > 0)
+    }
+    
     var body: some View {
         ZStack {
             VStack {
@@ -56,28 +64,78 @@ struct MainView: View {
                 StatusView(game: game, theme: theme)
                 
                 // Sudoku Board
-                SudokuBoard(game: game)
-                    .padding()
-                    .aspectRatio(1, contentMode: .fit)
-                    .frame(minWidth: 400, minHeight: 400)
-                    .opacity(game.isGenerating ? 0.5 : 1.0)
-                    .overlay(
-                        Group {
-                            if game.isPaused {
-                                PauseOverlay(game: game)
-                            }
-                            if game.isGameOver {
-                                GameOverOverlay(game: game, showingNewGamePicker: $showingNewGamePicker)
-                            }
+                GeometryReader { geometry in
+                    let boardSize = min(geometry.size.width, geometry.size.height)
+                    
+                    ZStack {
+                        SudokuBoard(game: game, cellSize: boardSize / 9)
+                            .frame(width: boardSize, height: boardSize)
+                            .opacity(game.isGenerating ? 0.5 : 1.0)
+                        
+                        // Overlays in separate layer to avoid clipping
+                        if game.isPaused {
+                            PauseOverlay(game: game)
+                                .frame(width: boardSize, height: boardSize)
+                                .clipped()
                         }
-                    )
+                        if game.isGameOver {
+                            GameOverOverlay(game: game, showingNewGamePicker: $showingNewGamePicker)
+                                .frame(width: boardSize, height: boardSize)
+                                .clipped()
+                        }
+                    }
+                    .frame(width: boardSize, height: boardSize)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .padding()
+                .aspectRatio(1, contentMode: .fit)
                 
-                // Number pad controls with mistakes counter
-                NumberPadHeader(game: game, theme: theme)
+                // Input controls (Pen/Notes/Undo/Redo) - always above number pad
+                ZStack {
+                    // Centered input controls
+                    HStack {
+                        Spacer()
+                        InputControls(game: game, theme: theme)
+                        Spacer()
+                    }
+                    
+                    // iPad: Mistakes counter overlaid on the left, aligned with board edge
+                    if horizontalSizeClass == .regular && showMistakes {
+                        HStack {
+                            MistakesCounter(game: game, theme: theme)
+                                .padding(.leading, 24) // Match board padding (16) + additional spacing
+                            Spacer()
+                        }
+                    }
+                }
                 
                 // Number Pad
                 NumberPad(game: game)
                     .disabled(game.isGenerating || game.isPaused || game.isGameOver)
+                
+                // Bottom row layout (iPhone only)
+                if horizontalSizeClass == .compact {
+                    // iPhone: Timer centered when no mistakes, side by side when mistakes showing
+                    if showMistakes {
+                        // Mistakes showing: side by side
+                        HStack(spacing: 16) {
+                            MistakesCounter(game: game, theme: theme)
+                            Spacer()
+                            TimerButtonView(game: game, theme: theme)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    } else {
+                        // No mistakes: timer centered
+                        HStack {
+                            Spacer()
+                            TimerButtonView(game: game, theme: theme)
+                            Spacer()
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                    }
+                }
                 
                 Spacer()
             }
@@ -89,7 +147,7 @@ struct MainView: View {
                     .allowsHitTesting(false)
             }
         }
-        .toast(isPresented: $showingErrorCheckingToast, edge: .top) {
+        .toast(isPresented: $showingErrorCheckingToast, edge: .bottom) {
             HStack(spacing: 8) {
                 Image(systemName: game.settings.autoErrorChecking ? "checkmark.circle.fill" : "circle")
                     .font(.title3)
@@ -98,7 +156,7 @@ struct MainView: View {
             }
             .foregroundColor(.white)
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .frame(height: 44)
             .background(
                 Capsule()
                     .fill(theme.primaryAccent)
@@ -118,13 +176,9 @@ struct MainView: View {
             AboutView()
                 .environment(\.theme, theme)
         }
-        #if os(macOS)
-        .frame(minWidth: 700, minHeight: 850)
-        #else
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sensoryFeedback(.error, trigger: game.triggerErrorHaptic)
         .sensoryFeedback(.success, trigger: game.triggerSuccessHaptic)
-        #endif
         .alert(isPresented: Binding(
             get: { showingContinueAlert || showingExpiredDailyAlert },
             set: { if !$0 { showingContinueAlert = false; showingExpiredDailyAlert = false } }
@@ -153,7 +207,7 @@ struct MainView: View {
                 )
             }
         }
-        .newGamePicker(isPresented: $showingNewGamePicker, game: game)
+        .newGamePicker(isPresented: $showingNewGamePicker, game: game, theme: theme)
         .onChange(of: showingStats) { _, isShowing in
             if !isShowing && !game.isComplete && !game.isGameOver {
                 game.startTimer()

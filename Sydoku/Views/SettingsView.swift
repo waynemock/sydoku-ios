@@ -38,6 +38,7 @@ struct SettingsView: View {
                     }
                     .foregroundColor(theme.primaryText)
                     .tint(theme.primaryAccent)
+                    .accentColor(theme.primaryAccent)
                     .listRowBackground(theme.cellBackgroundColor)
                     
                     Picker("Color Scheme", selection: Binding(
@@ -55,6 +56,7 @@ struct SettingsView: View {
                     }
                     .foregroundColor(theme.primaryText)
                     .tint(theme.primaryAccent)
+                    .accentColor(theme.primaryAccent)
                     .listRowBackground(theme.cellBackgroundColor)
                     
                     // Theme Preview
@@ -77,6 +79,7 @@ struct SettingsView: View {
                         }
                         .foregroundColor(theme.primaryText)
                         .tint(theme.primaryAccent)
+                        .toggleStyle(BorderedToggleStyle(accentColor: theme.primaryAccent))
                         .listRowBackground(theme.cellBackgroundColor)
                     
                     Picker("Mistake Limit", selection: $game.settings.mistakeLimit) {
@@ -90,6 +93,7 @@ struct SettingsView: View {
                     }
                     .foregroundColor(theme.primaryText)
                     .tint(theme.primaryAccent)
+                    .accentColor(theme.primaryAccent)
                     .listRowBackground(theme.cellBackgroundColor)
                     
                     Toggle("Highlight Same Numbers", isOn: $game.settings.highlightSameNumbers)
@@ -98,6 +102,7 @@ struct SettingsView: View {
                         }
                         .foregroundColor(theme.primaryText)
                         .tint(theme.primaryAccent)
+                        .toggleStyle(BorderedToggleStyle(accentColor: theme.primaryAccent))
                         .listRowBackground(theme.cellBackgroundColor)
                 }
                 
@@ -111,6 +116,7 @@ struct SettingsView: View {
                         }
                         .foregroundColor(theme.primaryText)
                         .tint(theme.primaryAccent)
+                        .toggleStyle(BorderedToggleStyle(accentColor: theme.primaryAccent))
                         .listRowBackground(theme.cellBackgroundColor)
                     
                     Toggle("Sound Effects", isOn: $game.settings.soundEffects)
@@ -119,6 +125,7 @@ struct SettingsView: View {
                         }
                         .foregroundColor(theme.primaryText)
                         .tint(theme.primaryAccent)
+                        .toggleStyle(BorderedToggleStyle(accentColor: theme.primaryAccent))
                         .listRowBackground(theme.cellBackgroundColor)
                 }
             }
@@ -137,10 +144,10 @@ struct SettingsView: View {
                     .foregroundColor(.white)
                 }
             }
+            .tint(theme.primaryAccent)
         }
-        #if os(macOS)
-        .frame(minWidth: 500, minHeight: 500)
-        #endif
+        .id(theme.type) // Force rebuild when theme changes
+        .tint(theme.primaryAccent)
     }
 }
 
@@ -148,6 +155,26 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView(game: SudokuGame(), theme: .constant(Theme(type: .ocean, colorScheme: .dark)))
+}
+
+/// A custom toggle style that adds a border when off.
+struct BorderedToggleStyle: ToggleStyle {
+    let accentColor: Color
+    
+    func makeBody(configuration: Configuration) -> some View {
+        HStack {
+            configuration.label
+            Spacer()
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(accentColor, lineWidth: 2)
+                    .frame(width: 62, height: 29)
+                
+                Toggle("", isOn: configuration.$isOn)
+                    .labelsHidden()
+            }
+        }
+    }
 }
 
 /// A preview box showing a theme color with label.
