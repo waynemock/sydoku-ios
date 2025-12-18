@@ -25,6 +25,13 @@ struct SudokuBoard: View {
                             isHintCell: game.hintCell?.row == row && game.hintCell?.col == col,
                             action: {
                                 game.selectedCell = (row, col)
+                                // Highlight the number if the cell has one
+                                let cellValue = game.board[row][col]
+                                if cellValue != 0 {
+                                    game.highlightedNumber = cellValue
+                                } else {
+                                    game.highlightedNumber = nil
+                                }
                             }
                         )
                         .border(

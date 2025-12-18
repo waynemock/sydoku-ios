@@ -175,6 +175,27 @@ struct ThemeKey: EnvironmentKey {
     static let defaultValue = Theme()
 }
 
+// MARK: - Difficulty Colors
+
+extension Theme {
+    /// Returns the color associated with a given difficulty level.
+    ///
+    /// - Parameter difficulty: The difficulty level to get the color for.
+    /// - Returns: The appropriate color for the difficulty level.
+    ///
+    /// - Easy: Success color (green)
+    /// - Medium: Warning color (orange)
+    /// - Hard: Error color (red)
+    /// - Expert: Danger color (dark grey)
+    func color(for difficulty: Difficulty) -> Color {
+        switch difficulty {
+        case .easy: return successColor
+        case .medium: return warningColor
+        case .hard: return errorColor
+        }
+    }
+}
+
 extension EnvironmentValues {
     /// The current theme for the app.
     var theme: Theme {

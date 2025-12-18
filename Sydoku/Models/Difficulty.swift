@@ -1,10 +1,18 @@
+//
+//  Difficulty.swift
+//  Sydoku
+//
+//  Created by Wayne Mock on 12/17/25.
+//
+
+
 import Foundation
 
 /// Represents the difficulty level of a Sudoku puzzle.
 ///
 /// Each difficulty level determines how many cells are removed from a completed puzzle,
 /// which directly affects how challenging the puzzle is to solve.
-enum Difficulty: String, Codable, CaseIterable {
+enum Difficulty: String, Codable, CaseIterable, Hashable {
     /// Easy difficulty - suitable for beginners.
     case easy
     
@@ -14,17 +22,25 @@ enum Difficulty: String, Codable, CaseIterable {
     /// Hard difficulty - challenging for experienced players.
     case hard
     
+    /// The number of clues (pre-filled cells) provided for this difficulty level.
+    ///
+    /// - Easy: 40 clues
+    /// - Medium: 32 clues
+    /// - Hard: 26 clues
+    /// - Expert: 17 clues
+    var numberOfClues: Int {
+        switch self {
+        case .easy: return 36
+        case .medium: return 32
+        case .hard: return 26
+        }
+    }
+    
     /// The number of cells to remove from a completed puzzle for this difficulty level.
     ///
-    /// - Easy: 35 cells removed
-    /// - Medium: 45 cells removed
-    /// - Hard: 52 cells removed
+    /// Computed as total cells minus the number of clues.
     var cellsToRemove: Int {
-        switch self {
-        case .easy: return 35
-        case .medium: return 45
-        case .hard: return 52
-        }
+        return SudokuGame.numberOfCells - numberOfClues
     }
     
     /// A human-readable display name for the difficulty level.
@@ -35,4 +51,4 @@ enum Difficulty: String, Codable, CaseIterable {
         case .hard: return "Hard"
         }
     }
-}
+ }
