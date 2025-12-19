@@ -8,6 +8,10 @@ struct MenuButtonView: View {
     @Binding var showingSettings: Bool
     @Binding var showingAbout: Bool
     @Binding var showingErrorCheckingToast: Bool
+    @Binding var showingCloudKitInfo: Bool
+    
+    /// The shared CloudKit status manager from the app environment.
+    @EnvironmentObject private var cloudKitStatus: CloudKitStatus
     
     var body: some View {
         Menu {
@@ -48,6 +52,10 @@ struct MenuButtonView: View {
             
             Button(action: { showingSettings = true }) {
                 Label("Settings", systemImage: "gearshape.fill")
+            }
+            
+            Button(action: { showingCloudKitInfo = true }) {
+                Label("iCloud Sync", systemImage: cloudKitStatus.isAvailable ? "icloud.fill" : "icloud.slash")
             }
             
             Divider()

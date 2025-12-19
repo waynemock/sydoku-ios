@@ -14,6 +14,9 @@ import SwiftData
 /// for storing game history, statistics, and syncing via CloudKit.
 @main
 struct SydokuApp: App {
+    /// The shared CloudKit status manager for the entire app lifecycle.
+    @StateObject private var cloudKitStatus = CloudKitStatus()
+    
     /// The shared model container for SwiftData persistence with CloudKit sync.
     ///
     /// Configures the data schema and storage location for the app's persistent data.
@@ -49,6 +52,7 @@ struct SydokuApp: App {
     var body: some Scene {
         WindowGroup {
             MainView()
+                .environmentObject(cloudKitStatus)
         }
         .modelContainer(sharedModelContainer)
     }

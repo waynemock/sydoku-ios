@@ -17,11 +17,29 @@ import SwiftData
 class PersistenceService {
     private let modelContext: ModelContext
     
+    /// Sync monitor for debugging CloudKit sync.
+    var syncMonitor = CloudKitSyncMonitor()
+    
     /// Initializes the persistence service with a model context.
     ///
     /// - Parameter modelContext: The SwiftData model context for data operations.
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
+        syncMonitor.logSync("PersistenceService initialized")
+    }
+    
+    // MARK: - Manual Sync Control
+    
+    /// Forces an immediate save to trigger CloudKit sync.
+    ///
+    /// Call this after important changes to ensure data is uploaded to CloudKit promptly.
+    func forceSave() {
+        do {
+            try modelContext.save()
+            syncMonitor.logSync("Forced save completed - CloudKit sync triggered")
+        } catch {
+            syncMonitor.logError("Failed to force save: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Statistics
@@ -36,6 +54,7 @@ class PersistenceService {
         let descriptor = FetchDescriptor<GameStatistics>()
         
         if let existing = try? modelContext.fetch(descriptor).first {
+            syncMonitor.logFetch("Loaded existing statistics (updated: \(existing.lastUpdated))")
             return existing
         }
         
@@ -43,6 +62,7 @@ class PersistenceService {
         let stats = GameStatistics()
         modelContext.insert(stats)
         try? modelContext.save()
+        syncMonitor.logSave("Created new statistics record")
         return stats
     }
     
@@ -51,7 +71,8 @@ class PersistenceService {
     /// - Parameter statistics: The statistics record to update.
     func saveStatistics(_ statistics: GameStatistics) {
         statistics.lastUpdated = Date()
-        try? modelContext.save()
+        syncMonitor.logSave("Statistics updated")
+        forceSave()
     }
     
     // MARK: - Saved Game
@@ -64,7 +85,13 @@ class PersistenceService {
             sortBy: [SortDescriptor(\.lastSaved, order: .reverse)]
         )
         
-        return try? modelContext.fetch(descriptor).first
+        let game = try? modelContext.fetch(descriptor).first
+        if let game = game {
+            syncMonitor.logFetch("Loaded saved game (saved: \(game.lastSaved))")
+        } else {
+            syncMonitor.logFetch("No saved game found")
+        }
+        return game
     }
     
     /// Saves the current game state.
@@ -113,7 +140,8 @@ class PersistenceService {
         )
         
         modelContext.insert(savedGame)
-        try? modelContext.save()
+        syncMonitor.logSave("Game state saved (difficulty: \(difficulty), time: \(Int(elapsedTime))s)")
+        forceSave()
     }
     
     /// Deletes the saved game.
@@ -123,7 +151,8 @@ class PersistenceService {
             for game in games {
                 modelContext.delete(game)
             }
-            try? modelContext.save()
+            syncMonitor.logDelete("Saved game deleted")
+            forceSave()
         }
     }
     
@@ -145,6 +174,7 @@ class PersistenceService {
         let descriptor = FetchDescriptor<UserSettings>()
         
         if let existing = try? modelContext.fetch(descriptor).first {
+            syncMonitor.logFetch("Loaded existing settings (updated: \(existing.lastUpdated))")
             return existing
         }
         
@@ -152,6 +182,7 @@ class PersistenceService {
         let settings = UserSettings()
         modelContext.insert(settings)
         try? modelContext.save()
+        syncMonitor.logSave("Created new settings record")
         return settings
     }
     
@@ -160,6 +191,7 @@ class PersistenceService {
     /// - Parameter settings: The settings record to update.
     func saveSettings(_ settings: UserSettings) {
         settings.lastUpdated = Date()
-        try? modelContext.save()
+        syncMonitor.logSave("Settings updated")
+        forceSave()
     }
 }

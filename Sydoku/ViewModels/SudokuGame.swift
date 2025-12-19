@@ -110,6 +110,9 @@ class SudokuGame: ObservableObject {
     /// Timer for tracking elapsed game time.
     private var timer: Timer?
     
+    /// Debounce timer for auto-saving after user actions.
+    private var saveDebounceTimer: Timer?
+    
     /// The difficulty level of the current puzzle.
     private var currentDifficulty: Difficulty = .medium
     
@@ -195,6 +198,60 @@ class SudokuGame: ObservableObject {
         checkForSavedGame()
     }
     
+    /// Reloads data from persistence (useful when app returns to foreground).
+    ///
+    /// This refreshes statistics, settings, and checks for updated saved games
+    /// that may have synced from CloudKit while the app was backgrounded.
+    func reloadFromPersistence() {
+        guard let persistenceService = persistenceService else { return }
+        
+        // Reload statistics
+        if let freshStats = persistenceService.fetchOrCreateStatistics() as? GameStatistics {
+            statsModel = freshStats
+            stats = StatsAdapter.toStruct(from: freshStats)
+        }
+        
+        // Reload settings  
+        if let freshSettings = persistenceService.fetchOrCreateSettings() as? UserSettings {
+            settingsModel = freshSettings
+            settings = SettingsAdapter.toStruct(from: freshSettings)
+        }
+        
+        // Check for updated saved game
+        // Get the freshest saved game data
+        if let freshSavedGame = persistenceService.fetchSavedGame() {
+            // Compare timestamps to see if remote data is newer
+            let remoteSaveTime = freshSavedGame.lastSaved
+            
+            // If we have a game in progress, check if remote is significantly newer
+            if hasSavedGame {
+                // Get current game's save time from our board state
+                // Only reload if remote is at least 5 seconds newer
+                if remoteSaveTime.timeIntervalSinceNow > -5 {
+                    // Remote is very recent, probably from another device
+                    LogInfo(self, "Detected newer saved game from CloudKit, reloading...")
+                    
+                    // Reload the game state
+                    board = SavedGameState.unflatten(freshSavedGame.boardData)
+                    notes = SavedGameState.decodeNotes(freshSavedGame.notesData)
+                    solution = SavedGameState.unflatten(freshSavedGame.solutionData)
+                    initialBoard = SavedGameState.unflatten(freshSavedGame.initialBoardData)
+                    if let difficulty = Difficulty(rawValue: freshSavedGame.difficulty) {
+                        currentDifficulty = difficulty
+                    }
+                    elapsedTime = freshSavedGame.elapsedTime
+                    gameStartDate = freshSavedGame.startDate
+                    mistakes = freshSavedGame.mistakes
+                    isDailyChallenge = freshSavedGame.isDailyChallenge
+                    dailyChallengeDate = freshSavedGame.dailyChallengeDate
+                }
+            } else {
+                // No game in progress, just load whatever is there
+                checkForSavedGame()
+            }
+        }
+    }
+    
     // MARK: - Settings
     
     /// Saves current game settings to persistent storage.
@@ -211,7 +268,6 @@ class SudokuGame: ObservableObject {
         stopTimer()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.elapsedTime += 1
-            self?.autoSave()
         }
     }
     
@@ -225,6 +281,7 @@ class SudokuGame: ObservableObject {
     func pauseTimer() {
         stopTimer()
         isPaused = true
+        saveGame() // Save when pausing
     }
     
     /// Resumes the game timer if the game is in progress.
@@ -245,9 +302,15 @@ class SudokuGame: ObservableObject {
     }
     
     // MARK: - Save/Load Game
-    private func autoSave() {
-        if Int(elapsedTime) % 5 == 0 {
-            saveGame()
+    
+    /// Debounced save - waits for user to stop making moves before saving.
+    ///
+    /// Saves the game 3 seconds after the last user action. This prevents excessive
+    /// CloudKit operations while ensuring progress is saved at natural break points.
+    private func debouncedSave() {
+        saveDebounceTimer?.invalidate()
+        saveDebounceTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
+            self?.saveGame()
         }
     }
     
@@ -344,6 +407,9 @@ class SudokuGame: ObservableObject {
         notes = previousState.notes
         mistakes = previousState.mistakes
         checkCompletion()
+        
+        // Save after undo (with debounce)
+        debouncedSave()
     }
     
     func redo() {
@@ -356,6 +422,9 @@ class SudokuGame: ObservableObject {
         notes = nextState.notes
         mistakes = nextState.mistakes
         checkCompletion()
+        
+        // Save after redo (with debounce)
+        debouncedSave()
     }
     
     // MARK: - Puzzle Generation
@@ -715,6 +784,9 @@ class SudokuGame: ObservableObject {
                 
                 checkCompletion()
             }
+            
+            // Save after user action (with debounce)
+            debouncedSave()
         }
     }
     
@@ -727,6 +799,9 @@ class SudokuGame: ObservableObject {
             notes[cell.row][cell.col].removeAll()
             hasError = false
             isComplete = false
+            
+            // Save after user action (with debounce)
+            debouncedSave()
         }
     }
     

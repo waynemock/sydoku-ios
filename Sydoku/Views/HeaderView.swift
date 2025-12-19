@@ -1,4 +1,5 @@
 import SwiftUI
+internal import CloudKit
 
 /// The header section containing app title, timer, and action buttons.
 ///
@@ -29,8 +30,40 @@ struct HeaderView: View {
     /// Binding to show/hide the error checking toast.
     @Binding var showingErrorCheckingToast: Bool
     
+    /// Binding to show/hide the CloudKit info sheet.
+    @Binding var showingCloudKitInfo: Bool
+    
     /// Environment horizontal size class to detect iPhone vs iPad.
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
+    /// The shared CloudKit status manager from the app environment.
+    @EnvironmentObject private var cloudKitStatus: CloudKitStatus
+    
+    @State private var isShowingCloudKitButton = false
+    @State private var pulseAnimation = false
+    
+    /// Creates a header view with the specified game, theme, and bindings.
+    init(
+        game: SudokuGame,
+        theme: Theme,
+        showingNewGamePicker: Binding<Bool>,
+        showingContinueAlert: Binding<Bool>,
+        showingStats: Binding<Bool>,
+        showingSettings: Binding<Bool>,
+        showingAbout: Binding<Bool>,
+        showingErrorCheckingToast: Binding<Bool>,
+        showingCloudKitInfo: Binding<Bool>
+    ) {
+        self.game = game
+        self.theme = theme
+        self._showingNewGamePicker = showingNewGamePicker
+        self._showingContinueAlert = showingContinueAlert
+        self._showingStats = showingStats
+        self._showingSettings = showingSettings
+        self._showingAbout = showingAbout
+        self._showingErrorCheckingToast = showingErrorCheckingToast
+        self._showingCloudKitInfo = showingCloudKitInfo
+    }
     
     var body: some View {
         ZStack {
@@ -93,12 +126,67 @@ struct HeaderView: View {
                         showingStats: $showingStats,
                         showingSettings: $showingSettings,
                         showingAbout: $showingAbout,
-                        showingErrorCheckingToast: $showingErrorCheckingToast
+                        showingErrorCheckingToast: $showingErrorCheckingToast,
+                        showingCloudKitInfo: $showingCloudKitInfo
                     )
+                    
+                    // iCloud status indicator
+                    if isShowingCloudKitButton {
+                        Button(action: { showingCloudKitInfo = true }) {
+                            ZStack {
+                                // Animated pulse background for attention
+                                Circle()
+                                    .fill(theme.primaryAccent.opacity(0.2))
+                                    .frame(width: 44, height: 44)
+                                    .scaleEffect(pulseAnimation ? 1.2 : 1.0)
+                                    .opacity(pulseAnimation ? 0 : 1)
+                                
+                                Image(systemName: "icloud.slash.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(theme.primaryAccent)
+                                
+                                // Small badge indicator
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 10, height: 10)
+                                    .offset(x: 15, y: -15)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("iCloud not connected")
+                        .accessibilityHint("Tap to learn how to enable iCloud sync")
+                    }
+                    
                 }
             }
         }
         .padding(.horizontal)
         .padding(.top)
+        .onAppear {
+            if !UserDefaults.standard.isSkipCloudKitCheck {
+                cloudKitStatus.initialize() { status in
+                    isShowingCloudKitButton = status != .available && !UserDefaults.standard.isSkipCloudKitCheck
+                    
+                    // Start pulse animation when button appears
+                    if isShowingCloudKitButton {
+                        startPulseAnimation()
+                    }
+                }
+            }
+        }
+        .onChange(of: showingCloudKitInfo) { oldValue, newValue in
+            // Hide the CloudKit button if user chose to permanently dismiss
+            if !newValue && UserDefaults.standard.isSkipCloudKitCheck && isShowingCloudKitButton {
+                isShowingCloudKitButton = false
+            }
+        }
+        
+    }
+    
+    /// Starts a repeating pulse animation to draw attention to the iCloud button.
+    private func startPulseAnimation() {
+        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
+            pulseAnimation = true
+        }
     }
 }

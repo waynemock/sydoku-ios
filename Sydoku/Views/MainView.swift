@@ -31,11 +31,17 @@ struct MainView: View {
     /// Whether the about overlay is showing.
     @State private var showingAbout = false
     
+    /// Whether the CloudKit info sheet is showing.
+    @State private var showingCloudKitInfo = false
+    
     /// Whether to show the auto error checking toast.
     @State private var showingErrorCheckingToast = false
     
     /// The current theme for the app.
     @State private var theme = Theme()
+    
+    /// App scene phase to detect foreground/background transitions.
+    @Environment(\.scenePhase) private var scenePhase
     
     /// The environment color scheme.
     @Environment(\.colorScheme) var systemColorScheme
@@ -60,7 +66,8 @@ struct MainView: View {
                     showingStats: $showingStats,
                     showingSettings: $showingSettings,
                     showingAbout: $showingAbout,
-                    showingErrorCheckingToast: $showingErrorCheckingToast
+                    showingErrorCheckingToast: $showingErrorCheckingToast,
+                    showingCloudKitInfo: $showingCloudKitInfo
                 )
                 
                 // Status messages
@@ -179,6 +186,10 @@ struct MainView: View {
             AboutView()
                 .environment(\.theme, theme)
         }
+        .sheet(isPresented: $showingCloudKitInfo) {
+            CloudKitInfo()
+                .environment(\.theme, theme)
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sensoryFeedback(.error, trigger: game.triggerErrorHaptic)
         .sensoryFeedback(.success, trigger: game.triggerSuccessHaptic)
@@ -226,6 +237,11 @@ struct MainView: View {
                 game.startTimer()
             }
         }
+        .onChange(of: showingCloudKitInfo) { _, isShowing in
+            if !isShowing && !game.isComplete && !game.isGameOver {
+                game.startTimer()
+            }
+        }
         .onAppear {
             // Configure SwiftData persistence
             let persistence = PersistenceService(modelContext: modelContext)
@@ -242,6 +258,20 @@ struct MainView: View {
             } else {
                 // No saved game - show the new game picker so user can choose difficulty
                 showingNewGamePicker = true
+            }
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            switch newPhase {
+            case .active:
+                // App came to foreground - refresh game data from CloudKit
+                game.reloadFromPersistence()
+            case .background:
+                // App going to background - save current state
+                if !game.isComplete && !game.isGameOver {
+                    game.saveGame()
+                }
+            default:
+                break
             }
         }
     }
