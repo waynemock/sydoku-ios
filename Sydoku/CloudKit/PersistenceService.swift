@@ -18,13 +18,20 @@ class PersistenceService {
     private let modelContext: ModelContext
     
     /// Sync monitor for debugging CloudKit sync.
-    var syncMonitor = CloudKitSyncMonitor()
+    var syncMonitor: CloudKitSyncMonitor
+    
+    /// CloudKit service for manual sync operations.
+    @ObservationIgnored
+    private var cloudKitService: CloudKitService
     
     /// Initializes the persistence service with a model context.
     ///
     /// - Parameter modelContext: The SwiftData model context for data operations.
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
+        let monitor = CloudKitSyncMonitor()
+        self.syncMonitor = monitor
+        self.cloudKitService = CloudKitService(syncMonitor: monitor)
         syncMonitor.logSync("PersistenceService initialized")
     }
     
@@ -70,9 +77,104 @@ class PersistenceService {
     ///
     /// - Parameter statistics: The statistics record to update.
     func saveStatistics(_ statistics: GameStatistics) {
-        statistics.lastUpdated = Date()
-        syncMonitor.logSave("Statistics updated")
+        let timestamp = Date()
+        statistics.lastUpdated = timestamp
+        syncMonitor.logSave("Statistics updated (timestamp: \(timestamp))")
         forceSave()
+        
+        // Upload to CloudKit immediately with the SAME timestamp
+        Task {
+            do {
+                try await cloudKitService.uploadStatistics(statistics, timestamp: timestamp)
+            } catch {
+                // Log error but don't fail the save
+                syncMonitor.logError("CloudKit upload failed (saved locally): \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    /// Downloads the latest statistics from CloudKit and updates local storage.
+    ///
+    /// This should be called when the app comes to foreground to get the latest
+    /// statistics from other devices.
+    func syncStatisticsFromCloudKit() async -> GameStatistics? {
+        do {
+            // First attempt
+            guard let cloudKitStats = try await cloudKitService.downloadStatistics() else {
+                syncMonitor.logSync("No statistics in CloudKit")
+                return nil
+            }
+            
+            // Check if we need to update local storage
+            let localStats = fetchOrCreateStatistics()
+            
+            syncMonitor.logSync("Comparing timestamps: CloudKit=\(cloudKitStats.lastUpdated) vs Local=\(localStats.lastUpdated)")
+            
+            // If local is newer than CloudKit, there might be propagation delay
+            // Wait 2 seconds and try again
+            if localStats.lastUpdated > cloudKitStats.lastUpdated {
+                let timeDiff = localStats.lastUpdated.timeIntervalSince(cloudKitStats.lastUpdated)
+                if timeDiff < 60 { // Only retry if difference is less than 60 seconds (recent change)
+                    syncMonitor.logSync("Local is newer, waiting for CloudKit to propagate...")
+                    try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                    
+                    // Retry download
+                    if let retryStats = try await cloudKitService.downloadStatistics() {
+                        if retryStats.lastUpdated > localStats.lastUpdated {
+                            syncMonitor.logSync("CloudKit has newer statistics after retry, updating local...")
+                            
+                            // Update local statistics with CloudKit data
+                            updateLocalStatistics(localStats, from: retryStats)
+                            
+                            try? modelContext.save()
+                            syncMonitor.logSync("✅ Local statistics updated from CloudKit after retry")
+                            
+                            return localStats
+                        }
+                    }
+                }
+                
+                syncMonitor.logSync("Local statistics are up to date (CloudKit not newer)")
+                return localStats
+            }
+            
+            // If CloudKit is newer, update local
+            if cloudKitStats.lastUpdated > localStats.lastUpdated {
+                syncMonitor.logSync("CloudKit has newer statistics, updating local...")
+                
+                // Update local statistics with CloudKit data
+                updateLocalStatistics(localStats, from: cloudKitStats)
+                
+                try? modelContext.save()
+                syncMonitor.logSync("✅ Local statistics updated from CloudKit")
+                
+                return localStats
+            } else {
+                syncMonitor.logSync("Local statistics are up to date (same timestamp)")
+                return localStats
+            }
+        } catch {
+            syncMonitor.logError("Failed to sync statistics from CloudKit: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Helper to update local statistics with CloudKit data.
+    private func updateLocalStatistics(_ local: GameStatistics, from cloudKit: GameStatistics) {
+        local.gamesPlayed = cloudKit.gamesPlayed
+        local.gamesCompleted = cloudKit.gamesCompleted
+        local.bestTimes = cloudKit.bestTimes
+        local.totalTime = cloudKit.totalTime
+        local.currentStreak = cloudKit.currentStreak
+        local.bestStreak = cloudKit.bestStreak
+        local.dailiesCompleted = cloudKit.dailiesCompleted
+        local.bestDailyTimes = cloudKit.bestDailyTimes
+        local.totalDailyTimes = cloudKit.totalDailyTimes
+        local.currentDailyStreak = cloudKit.currentDailyStreak
+        local.bestDailyStreak = cloudKit.bestDailyStreak
+        local.lastDailyCompletionDate = cloudKit.lastDailyCompletionDate
+        local.perfectDays = cloudKit.perfectDays
+        local.lastUpdated = cloudKit.lastUpdated
     }
     
     // MARK: - Saved Game
@@ -124,24 +226,52 @@ class PersistenceService {
         // Delete any existing saved game
         deleteSavedGame()
         
-        // Create new saved game
+        // Create new saved game with synchronized timestamp
         let notesData = SavedGameState.encodeNotes(notes)
+        let boardData = SavedGameState.flatten(board)
+        let solutionData = SavedGameState.flatten(solution)
+        let initialBoardData = SavedGameState.flatten(initialBoard)
+        let timestamp = Date()
+        
         let savedGame = SavedGameState(
-            boardData: SavedGameState.flatten(board),
+            boardData: boardData,
             notesData: notesData,
-            solutionData: SavedGameState.flatten(solution),
-            initialBoardData: SavedGameState.flatten(initialBoard),
+            solutionData: solutionData,
+            initialBoardData: initialBoardData,
             difficulty: difficulty,
             elapsedTime: elapsedTime,
             startDate: startDate,
             mistakes: mistakes,
             isDailyChallenge: isDailyChallenge,
-            dailyChallengeDate: dailyChallengeDate
+            dailyChallengeDate: dailyChallengeDate,
+            lastSaved: timestamp
         )
         
         modelContext.insert(savedGame)
-        syncMonitor.logSave("Game state saved (difficulty: \(difficulty), time: \(Int(elapsedTime))s)")
+        syncMonitor.logSave("Game state saved (difficulty: \(difficulty), time: \(Int(elapsedTime))s, timestamp: \(timestamp))")
         forceSave()
+        
+        // Upload to CloudKit immediately with the SAME timestamp
+        Task {
+            do {
+                try await cloudKitService.uploadSavedGame(
+                    boardData: boardData,
+                    notesData: notesData,
+                    solutionData: solutionData,
+                    initialBoardData: initialBoardData,
+                    difficulty: difficulty,
+                    elapsedTime: elapsedTime,
+                    startDate: startDate,
+                    mistakes: mistakes,
+                    isDailyChallenge: isDailyChallenge,
+                    dailyChallengeDate: dailyChallengeDate,
+                    lastSaved: timestamp
+                )
+            } catch {
+                // Log error but don't fail the save
+                syncMonitor.logError("CloudKit upload failed (saved locally): \(error.localizedDescription)")
+            }
+        }
     }
     
     /// Deletes the saved game.
@@ -153,6 +283,11 @@ class PersistenceService {
             }
             syncMonitor.logDelete("Saved game deleted")
             forceSave()
+            
+            // Also delete from CloudKit
+            Task {
+                try? await cloudKitService.deleteSavedGame()
+            }
         }
     }
     
@@ -163,6 +298,61 @@ class PersistenceService {
         let descriptor = FetchDescriptor<SavedGameState>()
         let count = (try? modelContext.fetchCount(descriptor)) ?? 0
         return count > 0
+    }
+    
+    // MARK: - CloudKit Sync
+    
+    /// Downloads the latest saved game from CloudKit and updates local storage.
+    ///
+    /// This should be called when the app comes to foreground to get the latest
+    /// data from other devices.
+    func syncSavedGameFromCloudKit() async -> SavedGameState? {
+        do {
+            guard let cloudKitGame = try await cloudKitService.downloadSavedGame() else {
+                syncMonitor.logSync("No saved game in CloudKit")
+                return nil
+            }
+            
+            // Check if we need to update local storage
+            let localGame = fetchSavedGame()
+            
+            // If CloudKit is newer, update local
+            if localGame == nil || cloudKitGame.lastSaved > localGame!.lastSaved {
+                syncMonitor.logSync("CloudKit has newer data, updating local...")
+                
+                // Delete old local game
+                if localGame != nil {
+                    deleteSavedGame()
+                }
+                
+                // Save CloudKit data locally
+                let savedGame = SavedGameState(
+                    boardData: cloudKitGame.boardData,
+                    notesData: cloudKitGame.notesData,
+                    solutionData: cloudKitGame.solutionData,
+                    initialBoardData: cloudKitGame.initialBoardData,
+                    difficulty: cloudKitGame.difficulty,
+                    elapsedTime: cloudKitGame.elapsedTime,
+                    startDate: cloudKitGame.startDate,
+                    mistakes: cloudKitGame.mistakes,
+                    isDailyChallenge: cloudKitGame.isDailyChallenge,
+                    dailyChallengeDate: cloudKitGame.dailyChallengeDate,
+                    lastSaved: cloudKitGame.lastSaved
+                )
+                
+                modelContext.insert(savedGame)
+                try? modelContext.save()
+                syncMonitor.logSync("✅ Local game updated from CloudKit")
+                
+                return savedGame
+            } else {
+                syncMonitor.logSync("Local game is up to date")
+                return localGame
+            }
+        } catch {
+            syncMonitor.logError("Failed to sync from CloudKit: \(error.localizedDescription)")
+            return nil
+        }
     }
     
     // MARK: - Settings
@@ -190,8 +380,104 @@ class PersistenceService {
     ///
     /// - Parameter settings: The settings record to update.
     func saveSettings(_ settings: UserSettings) {
-        settings.lastUpdated = Date()
-        syncMonitor.logSave("Settings updated")
+        let timestamp = Date()
+        settings.lastUpdated = timestamp
+        syncMonitor.logSave("Settings updated (timestamp: \(timestamp))")
         forceSave()
+        
+        // Upload to CloudKit immediately with the SAME timestamp
+        Task {
+            do {
+                try await cloudKitService.uploadSettings(settings, timestamp: timestamp)
+            } catch {
+                // Log error but don't fail the save
+                syncMonitor.logError("CloudKit upload failed (saved locally): \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    /// Downloads the latest settings from CloudKit and updates local storage.
+    ///
+    /// This should be called when the app comes to foreground to get the latest
+    /// settings from other devices.
+    func syncSettingsFromCloudKit() async -> UserSettings? {
+        do {
+            // First attempt
+            guard let cloudKitSettings = try await cloudKitService.downloadSettings() else {
+                syncMonitor.logSync("No settings in CloudKit")
+                return nil
+            }
+            
+            // Check if we need to update local storage
+            let localSettings = fetchOrCreateSettings()
+            
+            syncMonitor.logSync("Comparing timestamps: CloudKit=\(cloudKitSettings.lastUpdated) vs Local=\(localSettings.lastUpdated)")
+            syncMonitor.logSync("CloudKit theme: \(cloudKitSettings.themeTypeRawValue), Local theme: \(localSettings.themeTypeRawValue)")
+            
+            // If local is newer than CloudKit, there might be propagation delay
+            // Wait 2 seconds and try again
+            if localSettings.lastUpdated > cloudKitSettings.lastUpdated {
+                let timeDiff = localSettings.lastUpdated.timeIntervalSince(cloudKitSettings.lastUpdated)
+                if timeDiff < 60 { // Only retry if difference is less than 60 seconds (recent change)
+                    syncMonitor.logSync("Local is newer, waiting for CloudKit to propagate...")
+                    try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                    
+                    // Retry download
+                    if let retrySettings = try await cloudKitService.downloadSettings() {
+                        syncMonitor.logSync("Retry - CloudKit theme: \(retrySettings.themeTypeRawValue)")
+                        
+                        if retrySettings.lastUpdated > localSettings.lastUpdated {
+                            syncMonitor.logSync("CloudKit has newer settings after retry, updating local...")
+                            
+                            // Update local settings with CloudKit data
+                            localSettings.autoErrorChecking = retrySettings.autoErrorChecking
+                            localSettings.mistakeLimit = retrySettings.mistakeLimit
+                            localSettings.hapticFeedback = retrySettings.hapticFeedback
+                            localSettings.soundEffects = retrySettings.soundEffects
+                            localSettings.highlightSameNumbers = retrySettings.highlightSameNumbers
+                            localSettings.completedDailyChallenges = retrySettings.completedDailyChallenges
+                            localSettings.themeTypeRawValue = retrySettings.themeTypeRawValue
+                            localSettings.preferredColorSchemeRawValue = retrySettings.preferredColorSchemeRawValue
+                            localSettings.lastUpdated = retrySettings.lastUpdated
+                            
+                            try? modelContext.save()
+                            syncMonitor.logSync("✅ Local settings updated from CloudKit after retry (theme now: \(localSettings.themeTypeRawValue))")
+                            
+                            return localSettings
+                        }
+                    }
+                }
+                
+                syncMonitor.logSync("Local settings are up to date (CloudKit not newer)")
+                return localSettings
+            }
+            
+            // If CloudKit is newer, update local
+            if cloudKitSettings.lastUpdated > localSettings.lastUpdated {
+                syncMonitor.logSync("CloudKit has newer settings, updating local...")
+                
+                // Update local settings with CloudKit data
+                localSettings.autoErrorChecking = cloudKitSettings.autoErrorChecking
+                localSettings.mistakeLimit = cloudKitSettings.mistakeLimit
+                localSettings.hapticFeedback = cloudKitSettings.hapticFeedback
+                localSettings.soundEffects = cloudKitSettings.soundEffects
+                localSettings.highlightSameNumbers = cloudKitSettings.highlightSameNumbers
+                localSettings.completedDailyChallenges = cloudKitSettings.completedDailyChallenges
+                localSettings.themeTypeRawValue = cloudKitSettings.themeTypeRawValue
+                localSettings.preferredColorSchemeRawValue = cloudKitSettings.preferredColorSchemeRawValue
+                localSettings.lastUpdated = cloudKitSettings.lastUpdated
+                
+                try? modelContext.save()
+                syncMonitor.logSync("✅ Local settings updated from CloudKit (theme now: \(localSettings.themeTypeRawValue))")
+                
+                return localSettings
+            } else {
+                syncMonitor.logSync("Local settings are up to date (same timestamp)")
+                return localSettings
+            }
+        } catch {
+            syncMonitor.logError("Failed to sync settings from CloudKit: \(error.localizedDescription)")
+            return nil
+        }
     }
 }

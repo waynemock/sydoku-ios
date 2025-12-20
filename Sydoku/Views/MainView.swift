@@ -143,7 +143,6 @@ struct MainView: View {
                             Spacer()
                         }
                         .padding(.horizontal)
-                        .padding(.top, 8)
                     }
                 }
                 
@@ -273,6 +272,15 @@ struct MainView: View {
             default:
                 break
             }
+        }
+        .onChange(of: game.settings.themeType) { _, _ in
+            loadTheme()
+        }
+        .onChange(of: game.settings.preferredColorScheme) { _, _ in
+            loadTheme()
+        }
+        .onChange(of: systemColorScheme) { _, _ in
+            loadTheme()
         }
     }
     

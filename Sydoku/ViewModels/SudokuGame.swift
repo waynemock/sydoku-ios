@@ -128,6 +128,9 @@ class SudokuGame: ObservableObject {
     /// SwiftData model for user settings.
     private var settingsModel: UserSettings?
     
+    /// Logger for game events.
+    private let logger = AppLogger(category: "SudokuGame")
+    
     // MARK: - Computed Properties
     
     /// The current puzzle's difficulty level.
@@ -205,33 +208,12 @@ class SudokuGame: ObservableObject {
     func reloadFromPersistence() {
         guard let persistenceService = persistenceService else { return }
         
-        // Reload statistics
-        if let freshStats = persistenceService.fetchOrCreateStatistics() as? GameStatistics {
-            statsModel = freshStats
-            stats = StatsAdapter.toStruct(from: freshStats)
-        }
-        
-        // Reload settings  
-        if let freshSettings = persistenceService.fetchOrCreateSettings() as? UserSettings {
-            settingsModel = freshSettings
-            settings = SettingsAdapter.toStruct(from: freshSettings)
-        }
-        
-        // Check for updated saved game
-        // Get the freshest saved game data
-        if let freshSavedGame = persistenceService.fetchSavedGame() {
-            // Compare timestamps to see if remote data is newer
-            let remoteSaveTime = freshSavedGame.lastSaved
-            
-            // If we have a game in progress, check if remote is significantly newer
-            if hasSavedGame {
-                // Get current game's save time from our board state
-                // Only reload if remote is at least 5 seconds newer
-                if remoteSaveTime.timeIntervalSinceNow > -5 {
-                    // Remote is very recent, probably from another device
-                    LogInfo(self, "Detected newer saved game from CloudKit, reloading...")
-                    
-                    // Reload the game state
+        // Sync from CloudKit in background
+        Task {
+            // Download latest game from CloudKit
+            if let freshSavedGame = await persistenceService.syncSavedGameFromCloudKit() {
+                // Update the board with CloudKit data
+                await MainActor.run {
                     board = SavedGameState.unflatten(freshSavedGame.boardData)
                     notes = SavedGameState.decodeNotes(freshSavedGame.notesData)
                     solution = SavedGameState.unflatten(freshSavedGame.solutionData)
@@ -244,10 +226,28 @@ class SudokuGame: ObservableObject {
                     mistakes = freshSavedGame.mistakes
                     isDailyChallenge = freshSavedGame.isDailyChallenge
                     dailyChallengeDate = freshSavedGame.dailyChallengeDate
+                    hasSavedGame = true
+                    
+                    logger.info(self, "Game reloaded from CloudKit")
                 }
-            } else {
-                // No game in progress, just load whatever is there
-                checkForSavedGame()
+            }
+            
+            // Download latest settings from CloudKit
+            if let freshSettings = await persistenceService.syncSettingsFromCloudKit() {
+                await MainActor.run {
+                    settingsModel = freshSettings
+                    settings = SettingsAdapter.toStruct(from: freshSettings)
+                    logger.info(self, "Settings reloaded from CloudKit")
+                }
+            }
+            
+            // Download latest statistics from CloudKit
+            if let freshStatistics = await persistenceService.syncStatisticsFromCloudKit() {
+                await MainActor.run {
+                    statsModel = freshStatistics
+                    stats = StatsAdapter.toStruct(from: freshStatistics)
+                    logger.info(self, "Statistics reloaded from CloudKit")
+                }
             }
         }
     }
@@ -443,7 +443,7 @@ class SudokuGame: ObservableObject {
         currentDifficulty = difficulty
         self.isDailyChallenge = isDailyChallenge
         
-        print("🎮 Starting puzzle generation: \(difficulty.name) - Target: \(difficulty.cellsToRemove) cells to remove, \(difficulty.numberOfClues) clues")
+        logger.info(self, "Starting puzzle generation: \(difficulty.name) - Target: \(difficulty.cellsToRemove) cells to remove, \(difficulty.numberOfClues) clues")
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
@@ -488,7 +488,7 @@ class SudokuGame: ObservableObject {
             }
         }
         
-        print("✅ Puzzle finalized: \(difficulty.name) - Expected: \(difficulty.numberOfClues) clues, Actual: \(actualClues) clues")
+        logger.info(self, "Puzzle finalized: \(difficulty.name) - Expected: \(difficulty.numberOfClues) clues, Actual: \(actualClues) clues")
         
         self.solution = solution
         self.board = board
@@ -580,7 +580,7 @@ class SudokuGame: ObservableObject {
         var passCount = 0
         let maxPasses = 5
         
-        print("🔄 Starting multi-pass removal (target: \(count) cells)")
+        logger.debug(self, "Starting multi-pass removal (target: \(count) cells)")
         
         while removed < count && passCount < maxPasses {
             passCount += 1
@@ -612,17 +612,17 @@ class SudokuGame: ObservableObject {
                 }
             }
             
-            print("   Pass \(passCount): Removed \(removedThisPass) cells (total: \(removed)/\(count))")
+            logger.debug(self, "Pass \(passCount): Removed \(removedThisPass) cells (total: \(removed)/\(count))")
             
             // If we made no progress, break early
             if removedThisPass == 0 {
-                print("   ⚠️ No progress made, stopping early")
+                logger.debug(self, "No progress made, stopping early")
                 break
             }
         }
         
         let cluesRemaining = Self.numberOfCells - removed
-        print("🎯 Puzzle Generation (Seeded): Removed \(removed)/\(count) cells, \(cluesRemaining) clues remaining")
+        logger.info(self, "Puzzle Generation (Seeded): Removed \(removed)/\(count) cells, \(cluesRemaining) clues remaining")
         
         return puzzle
     }
@@ -633,7 +633,7 @@ class SudokuGame: ObservableObject {
         var passCount = 0
         let maxPasses = 5
         
-        print("🔄 Starting multi-pass removal (target: \(count) cells)")
+        logger.debug(self, "Starting multi-pass removal (target: \(count) cells)")
         
         while removed < count && passCount < maxPasses {
             passCount += 1
@@ -665,17 +665,17 @@ class SudokuGame: ObservableObject {
                 }
             }
             
-            print("   Pass \(passCount): Removed \(removedThisPass) cells (total: \(removed)/\(count))")
+            logger.debug(self, "Pass \(passCount): Removed \(removedThisPass) cells (total: \(removed)/\(count))")
             
             // If we made no progress, break early
             if removedThisPass == 0 {
-                print("   ⚠️ No progress made, stopping early")
+                logger.debug(self, "No progress made, stopping early")
                 break
             }
         }
         
         let cluesRemaining = Self.numberOfCells - removed
-        print("🎯 Puzzle Generation: Removed \(removed)/\(count) cells, \(cluesRemaining) clues remaining")
+        logger.info(self, "Puzzle Generation: Removed \(removed)/\(count) cells, \(cluesRemaining) clues remaining")
         
         return puzzle
     }

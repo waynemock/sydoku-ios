@@ -27,6 +27,9 @@ class CloudKitSyncMonitor {
     /// Maximum number of events to keep in memory.
     private let maxEvents = 50
     
+    /// Logger for sync events.
+    private let logger = AppLogger(category: "CloudKitSyncMonitor")
+    
     struct SyncEvent: Identifiable {
         let id = UUID()
         let timestamp: Date
@@ -52,7 +55,7 @@ class CloudKitSyncMonitor {
             syncEvents.removeLast()
         }
         
-        LogInfo(self, message)
+        logger.info(self, message)
     }
     
     /// Logs a save operation.

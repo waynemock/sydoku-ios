@@ -21,6 +21,7 @@ class CloudKitStatus: ObservableObject {
 
 	// MARK: - Properties
 	private let container = CKContainer.default()
+	private let logger = AppLogger(category: "CloudKitStatus")
 	
 	/// The current CloudKit account status.
 	@Published private(set) var accountStatus: CKAccountStatus = .couldNotDetermine
@@ -65,17 +66,22 @@ class CloudKitStatus: ObservableObject {
 	}
 
 	deinit {
-		LogInfo(self, "bye!")
 		NotificationCenter.default.removeObserver(self)
 	}
 
 	// MARK: - Notification Handling
 	@objc private func accountDidChange(_ notification: Notification) {
 		/// This notification can fire frequently after iCloud login, so we debounce it
-		guard !isRequesting && accountDidChangeTimer == nil else { return }
-		accountDidChangeTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in
-			self?.requestAccountStatus()
-			self?.accountDidChangeTimer = nil
+		Task { @MainActor [weak self] in
+			guard let self = self else { return }
+			guard !self.isRequesting && self.accountDidChangeTimer == nil else { return }
+			self.accountDidChangeTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in
+				guard let self = self else { return }
+				Task { @MainActor in
+					self.requestAccountStatus()
+					self.accountDidChangeTimer = nil
+				}
+			}
 		}
 	}
 
@@ -90,12 +96,12 @@ class CloudKitStatus: ObservableObject {
 				let status = try await container.accountStatus()
 				
 				if self.accountStatus != status {
-					LogInfo(self, "accountStatus=\(status.rawValue)")
+					logger.info(self, "accountStatus=\(status.rawValue)")
 					self.accountStatus = status
 					self.completionHandler?(status)
 				}
 			} catch {
-				LogError(self, "\(error.localizedDescription)")
+				logger.error(self, "\(error.localizedDescription)")
 			}
 			
 			self.isRequesting = false
