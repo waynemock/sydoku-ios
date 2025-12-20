@@ -74,16 +74,15 @@ struct HeaderView: View {
                     HStack(spacing: 8) {
                         Text("Sydoku")
                             .foregroundColor(theme.primaryText)
-                            .font(.custom("Papyrus", size: 34))
+                            .font(.app(size: 34))
                             .fontWeight(.bold)
                     }
                     
                     // Puzzle type and difficulty
                     if !game.isGenerating && (game.hasSavedGame || !game.initialBoard.allSatisfy({ $0.allSatisfy({ $0 == 0 }) })) {
                         Text(game.isDailyChallenge ? "Daily Challenge • \(game.difficulty.name)" : game.difficulty.name)
-                            .font(.subheadline)
+                            .font(.appSubheadline)
                             .foregroundColor(theme.secondaryText)
-                            .offset(y: -4)
                     }
                 }
                 

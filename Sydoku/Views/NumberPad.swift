@@ -99,12 +99,14 @@ struct NumberButton: View {
         Button(action: action) {
             VStack(spacing: 2) {
                 Text("\(number)")
-                    .font(.title2.weight(.bold))
+                    .font(.appTitle2)
+                    .fontWeight(.bold)
                     .foregroundColor(.white)
                 if count > 0 {
                     // Show usage count
                     Text("\(count)/9")
-                        .font(.caption2.weight(.medium))
+                        .font(.appCaption2)
+                        .fontWeight(.medium)
                         .foregroundColor(.white.opacity(0.8))
                 }
             }

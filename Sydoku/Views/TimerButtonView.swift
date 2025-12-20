@@ -15,7 +15,8 @@ struct TimerButtonView: View {
                     Image(systemName: game.isPaused ? "play.fill" : "pause.fill")
                         .foregroundColor(theme.primaryAccent)
                     Text(game.formattedTime)
-                        .font(.system(.body, design: .monospaced, weight: .medium))
+                        .font(.appMonospaced)
+                        .fontWeight(.medium)
                         .foregroundColor(theme.primaryAccent)
                 }
                 .padding(.horizontal, 12)

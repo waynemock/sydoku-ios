@@ -48,7 +48,8 @@ struct InputControls: View {
                         game.isPencilMode = false
                     }) {
                         Text("Pen")
-                            .font(.body.weight(.bold))
+                            .font(.appBody)
+                            .fontWeight(.bold)
                             .foregroundColor(!game.isPencilMode ? .white : theme.secondaryText)
                             .frame(width: 88, height: 52)
                     }
@@ -60,7 +61,8 @@ struct InputControls: View {
                         game.isPencilMode = true
                     }) {
                         Text("Notes")
-                            .font(.body.weight(.bold))
+                            .font(.appBody)
+                            .fontWeight(.bold)
                             .foregroundColor(game.isPencilMode ? .white : theme.secondaryText)
                             .frame(width: 88, height: 52)
                     }

@@ -13,7 +13,6 @@ internal import CloudKit
 /// This service provides explicit control over CloudKit sync, bypassing SwiftData's
 /// unreliable automatic sync. It manually uploads and downloads records to ensure
 /// reliable cross-device synchronization.
-@MainActor
 class CloudKitService {
     /// The CloudKit container.
     private let container = CKContainer.default()
@@ -44,6 +43,22 @@ class CloudKitService {
         self.syncMonitor = syncMonitor
     }
     
+    // MARK: - Logging Helpers
+    
+    /// Logs to sync monitor on main actor.
+    private func logSync(_ message: String) {
+        Task { @MainActor in
+            syncMonitor.logSync(message)
+        }
+    }
+    
+    /// Logs an error to sync monitor on main actor.
+    private func logError(_ message: String) {
+        Task { @MainActor in
+            syncMonitor.logError(message)
+        }
+    }
+    
     // MARK: - Saved Game
     
     /// Uploads the current saved game to CloudKit.
@@ -60,7 +75,7 @@ class CloudKitService {
         dailyChallengeDate: String?,
         lastSaved: Date
     ) async throws {
-        syncMonitor.logSync("Uploading saved game to CloudKit...")
+        logSync("Uploading saved game to CloudKit...")
         
         let recordID = CKRecord.ID(recordName: RecordID.savedGame)
         
@@ -68,13 +83,13 @@ class CloudKitService {
         let record: CKRecord
         do {
             record = try await database.record(for: recordID)
-            syncMonitor.logSync("Updating existing saved game record")
+            logSync("Updating existing saved game record")
         } catch let error as CKError where error.code == .unknownItem {
             // Record doesn't exist yet, create new one
             record = CKRecord(recordType: RecordType.savedGame, recordID: recordID)
-            syncMonitor.logSync("Creating new saved game record")
+            logSync("Creating new saved game record")
         } catch {
-            syncMonitor.logError("Failed to fetch saved game record: \(error.localizedDescription)")
+            logError("Failed to fetch saved game record: \(error.localizedDescription)")
             throw error
         }
         
@@ -94,16 +109,16 @@ class CloudKitService {
         
         do {
             _ = try await database.save(record)
-            syncMonitor.logSync("✅ Saved game uploaded successfully (timestamp: \(lastSaved))")
+            logSync("✅ Saved game uploaded successfully (timestamp: \(lastSaved))")
         } catch {
-            syncMonitor.logError("Failed to upload saved game: \(error.localizedDescription)")
+            logError("Failed to upload saved game: \(error.localizedDescription)")
             throw error
         }
     }
     
     /// Downloads the current saved game from CloudKit.
     func downloadSavedGame() async throws -> CloudKitSavedGame? {
-        syncMonitor.logSync("Downloading saved game from CloudKit...")
+        logSync("Downloading saved game from CloudKit...")
         
         let recordID = CKRecord.ID(recordName: RecordID.savedGame)
         
@@ -120,14 +135,14 @@ class CloudKitService {
                   let mistakes = record["mistakes"] as? Int,
                   let isDailyChallengeInt = record["isDailyChallenge"] as? Int,
                   let lastSaved = record["lastSaved"] as? Date else {
-                syncMonitor.logError("Failed to parse saved game record")
+                logError("Failed to parse saved game record")
                 return nil
             }
             
             let dailyChallengeDate = record["dailyChallengeDate"] as? String
             let isDailyChallenge = isDailyChallengeInt == 1
             
-            syncMonitor.logSync("✅ Saved game downloaded (saved: \(lastSaved))")
+            logSync("✅ Saved game downloaded (saved: \(lastSaved))")
             
             return CloudKitSavedGame(
                 boardData: boardData,
@@ -144,28 +159,28 @@ class CloudKitService {
             )
         } catch let error as CKError where error.code == .unknownItem {
             // No saved game exists yet
-            syncMonitor.logSync("No saved game found in CloudKit")
+            logSync("No saved game found in CloudKit")
             return nil
         } catch {
-            syncMonitor.logError("Failed to download saved game: \(error.localizedDescription)")
+            logError("Failed to download saved game: \(error.localizedDescription)")
             throw error
         }
     }
     
     /// Deletes the saved game from CloudKit.
     func deleteSavedGame() async throws {
-        syncMonitor.logSync("Deleting saved game from CloudKit...")
+        logSync("Deleting saved game from CloudKit...")
         
         let recordID = CKRecord.ID(recordName: RecordID.savedGame)
         
         do {
             _ = try await database.deleteRecord(withID: recordID)
-            syncMonitor.logSync("✅ Saved game deleted from CloudKit")
+            logSync("✅ Saved game deleted from CloudKit")
         } catch let error as CKError where error.code == .unknownItem {
             // Already deleted, that's fine
-            syncMonitor.logSync("Saved game already deleted")
+            logSync("Saved game already deleted")
         } catch {
-            syncMonitor.logError("Failed to delete saved game: \(error.localizedDescription)")
+            logError("Failed to delete saved game: \(error.localizedDescription)")
             throw error
         }
     }
@@ -174,7 +189,7 @@ class CloudKitService {
     
     /// Uploads statistics to CloudKit.
     func uploadStatistics(_ stats: GameStatistics, timestamp: Date) async throws {
-        syncMonitor.logSync("Uploading statistics to CloudKit...")
+        logSync("Uploading statistics to CloudKit...")
         
         let recordID = CKRecord.ID(recordName: RecordID.statistics)
         
@@ -182,13 +197,13 @@ class CloudKitService {
         let record: CKRecord
         do {
             record = try await database.record(for: recordID)
-            syncMonitor.logSync("Updating existing statistics record")
+            logSync("Updating existing statistics record")
         } catch let error as CKError where error.code == .unknownItem {
             // Record doesn't exist yet, create new one
             record = CKRecord(recordType: RecordType.statistics, recordID: recordID)
-            syncMonitor.logSync("Creating new statistics record")
+            logSync("Creating new statistics record")
         } catch {
-            syncMonitor.logError("Failed to fetch statistics record: \(error.localizedDescription)")
+            logError("Failed to fetch statistics record: \(error.localizedDescription)")
             throw error
         }
         
@@ -220,16 +235,16 @@ class CloudKitService {
         
         do {
             _ = try await database.save(record)
-            syncMonitor.logSync("✅ Statistics uploaded successfully (timestamp: \(timestamp))")
+            logSync("✅ Statistics uploaded successfully (timestamp: \(timestamp))")
         } catch {
-            syncMonitor.logError("Failed to upload statistics: \(error.localizedDescription)")
+            logError("Failed to upload statistics: \(error.localizedDescription)")
             throw error
         }
     }
     
     /// Downloads statistics from CloudKit.
     func downloadStatistics() async throws -> GameStatistics? {
-        syncMonitor.logSync("Downloading statistics from CloudKit...")
+        logSync("Downloading statistics from CloudKit...")
         
         let recordID = CKRecord.ID(recordName: RecordID.statistics)
         
@@ -251,7 +266,7 @@ class CloudKitService {
                   let lastDailyCompletionDate = record["lastDailyCompletionDate"] as? String,
                   let perfectDays = record["perfectDays"] as? Int,
                   let lastUpdated = record["lastUpdated"] as? Date else {
-                syncMonitor.logError("Failed to parse statistics record")
+                logError("Failed to parse statistics record")
                 return nil
             }
             
@@ -272,13 +287,13 @@ class CloudKitService {
                 lastUpdated: lastUpdated
             )
             
-            syncMonitor.logSync("✅ Statistics downloaded (updated: \(lastUpdated))")
+            logSync("✅ Statistics downloaded (updated: \(lastUpdated))")
             return stats
         } catch let error as CKError where error.code == .unknownItem {
-            syncMonitor.logSync("No statistics found in CloudKit")
+            logSync("No statistics found in CloudKit")
             return nil
         } catch {
-            syncMonitor.logError("Failed to download statistics: \(error.localizedDescription)")
+            logError("Failed to download statistics: \(error.localizedDescription)")
             throw error
         }
     }
@@ -287,7 +302,7 @@ class CloudKitService {
     
     /// Uploads settings to CloudKit.
     func uploadSettings(_ settings: UserSettings, timestamp: Date) async throws {
-        syncMonitor.logSync("Uploading settings to CloudKit...")
+        logSync("Uploading settings to CloudKit...")
         
         let recordID = CKRecord.ID(recordName: RecordID.settings)
         
@@ -296,13 +311,13 @@ class CloudKitService {
         do {
             // Fetch with proper async/await
             record = try await database.record(for: recordID)
-            syncMonitor.logSync("Updating existing settings record")
+            logSync("Updating existing settings record")
         } catch let error as CKError where error.code == .unknownItem {
             // Record doesn't exist yet, create new one
             record = CKRecord(recordType: RecordType.settings, recordID: recordID)
-            syncMonitor.logSync("Creating new settings record")
+            logSync("Creating new settings record")
         } catch {
-            syncMonitor.logError("Failed to fetch settings record: \(error.localizedDescription)")
+            logError("Failed to fetch settings record: \(error.localizedDescription)")
             throw error
         }
         
@@ -323,16 +338,16 @@ class CloudKitService {
         
         do {
             _ = try await database.save(record)
-            syncMonitor.logSync("✅ Settings uploaded successfully (timestamp: \(timestamp), theme: \(settings.themeTypeRawValue))")
+            logSync("✅ Settings uploaded successfully (timestamp: \(timestamp), theme: \(settings.themeTypeRawValue))")
         } catch {
-            syncMonitor.logError("Failed to upload settings: \(error.localizedDescription)")
+            logError("Failed to upload settings: \(error.localizedDescription)")
             throw error
         }
     }
     
     /// Downloads settings from CloudKit.
     func downloadSettings() async throws -> UserSettings? {
-        syncMonitor.logSync("Downloading settings from CloudKit...")
+        logSync("Downloading settings from CloudKit...")
         
         let recordID = CKRecord.ID(recordName: RecordID.settings)
         
@@ -349,7 +364,7 @@ class CloudKitService {
                   let themeTypeRawValue = record["themeTypeRawValue"] as? String,
                   let preferredColorSchemeRawValue = record["preferredColorSchemeRawValue"] as? String,
                   let lastUpdated = record["lastUpdated"] as? Date else {
-                syncMonitor.logError("Failed to parse settings record")
+                logError("Failed to parse settings record")
                 return nil
             }
             
@@ -365,13 +380,13 @@ class CloudKitService {
                 lastUpdated: lastUpdated
             )
             
-            syncMonitor.logSync("✅ Settings downloaded (updated: \(lastUpdated), theme: \(themeTypeRawValue))")
+            logSync("✅ Settings downloaded (updated: \(lastUpdated), theme: \(themeTypeRawValue))")
             return settings
         } catch let error as CKError where error.code == .unknownItem {
-            syncMonitor.logSync("No settings found in CloudKit")
+            logSync("No settings found in CloudKit")
             return nil
         } catch {
-            syncMonitor.logError("Failed to download settings: \(error.localizedDescription)")
+            logError("Failed to download settings: \(error.localizedDescription)")
             throw error
         }
     }

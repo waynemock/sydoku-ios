@@ -29,7 +29,8 @@ struct LaunchLoadingView: View {
             VStack(spacing: 16) {
                 // Syncing message
                 Text("Syncing with iCloud...")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.appHeadline)
+                    .fontWeight(.semibold)
                     .foregroundColor(theme.primaryText)
                 
                 // Loading indicator
@@ -86,9 +87,9 @@ struct LaunchLoadingView: View {
             .padding(32)
             .opacity(opacity)
         }
-        .onAppear {
-            // Fade in
-            withAnimation(.easeOut(duration: 0.3)) {
+        .task {
+            // Fade in immediately
+            withAnimation(.easeOut(duration: 0.2)) {
                 opacity = 1
             }
             

@@ -49,6 +49,9 @@ struct MainView: View {
     /// Whether a background sync is in progress (after user dismissed loading overlay).
     @State private var isBackgroundSyncing = false
     
+    /// Whether this is the initial app launch (to avoid double-syncing on first scene activation).
+    @State private var isInitialLaunch = true
+    
     /// The current theme for the app.
     @State private var theme = Theme()
     
@@ -106,69 +109,15 @@ struct MainView: View {
             
             loadTheme()
             
-            // Sync from CloudKit with timeout
+            // Perform initial sync - delay slightly to let UI render first
             Task {
-                var didComplete = false
+                // Give the loading view a moment to fully render
+                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
                 
-                // Race between sync, slow connection warning, and timeout
-                await withTaskGroup(of: String.self) { group in
-                    // Sync task
-                    group.addTask {
-                        await game.syncAllFromCloudKit()
-                        return "completed"
-                    }
-                    
-                    // Slow connection warning task (3 seconds)
-                    group.addTask {
-                        try? await Task.sleep(nanoseconds: 3_000_000_000)
-                        return "slow"
-                    }
-                    
-                    // Timeout task (10 seconds total)
-                    group.addTask {
-                        try? await Task.sleep(nanoseconds: 10_000_000_000)
-                        return "timeout"
-                    }
-                    
-                    // Process results
-                    for await result in group {
-                        if result == "completed" {
-                            didComplete = true
-                            group.cancelAll()
-                            break
-                        } else if result == "slow" {
-                            // Show slow connection warning in loading screen
-                            await MainActor.run {
-                                withAnimation {
-                                    isSlowConnection = true
-                                }
-                            }
-                        } else if result == "timeout" {
-                            // Timed out completely
-                            group.cancelAll()
-                            break
-                        }
-                    }
-                }
+                await performSync()
                 
-                // Now check if we have a saved game (potentially from CloudKit)
+                // After sync completes, check for saved game
                 await MainActor.run {
-                    // Hide loading screen
-                    isLoading = false
-                    
-                    if didComplete {
-                        // Sync completed successfully
-                        isBackgroundSyncing = false
-                        syncTimedOut = false
-                    } else {
-                        // Sync timed out or failed
-                        if isBackgroundSyncing {
-                            // Already dismissed overlay, just stop showing background sync
-                            isBackgroundSyncing = false
-                        }
-                        syncTimedOut = true
-                    }
-                    
                     if game.hasSavedGame {
                         // Check if it's an expired daily challenge
                         if game.isDailyChallengeExpired {
@@ -187,8 +136,17 @@ struct MainView: View {
         .onChange(of: scenePhase) { oldPhase, newPhase in
             switch newPhase {
             case .active:
-                // App came to foreground - refresh game data from CloudKit
-                game.reloadFromPersistence()
+                // Skip sync on initial launch (already handled in onAppear)
+                guard !isInitialLaunch else {
+                    isInitialLaunch = false
+                    return
+                }
+                
+                // App came to foreground - sync from CloudKit
+                Task {
+                    await performSync()
+                }
+                
             case .background:
                 // App going to background - save current state
                 if !game.isComplete && !game.isGameOver {
@@ -294,7 +252,6 @@ struct MainView: View {
                             TimerButtonView(game: game, theme: theme)
                         }
                         .padding(.horizontal)
-                        .padding(.top, 8)
                     } else {
                         // No mistakes: timer centered
                         HStack {
@@ -475,6 +432,81 @@ struct MainView: View {
     private func loadTheme() {
         let colorScheme = game.settings.preferredColorScheme.toColorScheme(system: systemColorScheme)
         theme = Theme(type: game.settings.themeType, colorScheme: colorScheme)
+    }
+    
+    /// Performs a CloudKit sync with timeout and loading UI.
+    private func performSync() async {
+        // Show loading overlay
+        await MainActor.run {
+            withAnimation {
+                isLoading = true
+                isSlowConnection = false
+                isBackgroundSyncing = false
+            }
+        }
+        
+        var didComplete = false
+        
+        // Race between sync, slow connection warning, and timeout
+        await withTaskGroup(of: String.self) { group in
+            // Sync task
+            group.addTask {
+                await game.syncAllFromCloudKit()
+                return "completed"
+            }
+            
+            // Slow connection warning task (3 seconds)
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                return "slow"
+            }
+            
+            // Timeout task (10 seconds total)
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                return "timeout"
+            }
+            
+            // Process results
+            for await result in group {
+                if result == "completed" {
+                    didComplete = true
+                    group.cancelAll()
+                    break
+                } else if result == "slow" {
+                    // Show slow connection warning in loading screen
+                    await MainActor.run {
+                        withAnimation {
+                            isSlowConnection = true
+                        }
+                    }
+                } else if result == "timeout" {
+                    // Timed out completely
+                    group.cancelAll()
+                    break
+                }
+            }
+        }
+        
+        // Update UI after sync completes or times out
+        await MainActor.run {
+            withAnimation {
+                isLoading = false
+                
+                if didComplete {
+                    // Sync completed successfully
+                    isBackgroundSyncing = false
+                    syncTimedOut = false
+                } else {
+                    // Sync timed out or failed
+                    if isBackgroundSyncing {
+                        // Already dismissed overlay, just stop showing background sync
+                        isBackgroundSyncing = false
+                    }
+                    syncTimedOut = true
+                }
+            }
+        }
     }
 }
 

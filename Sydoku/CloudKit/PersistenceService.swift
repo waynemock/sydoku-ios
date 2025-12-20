@@ -110,13 +110,19 @@ class PersistenceService {
             
             syncMonitor.logSync("Comparing timestamps: CloudKit=\(cloudKitStats.lastUpdated) vs Local=\(localStats.lastUpdated)")
             
+            // If timestamps are equal, we're already in sync - no need to do anything
+            if localStats.lastUpdated == cloudKitStats.lastUpdated {
+                syncMonitor.logSync("Local statistics are up to date (same timestamp)")
+                return localStats
+            }
+            
             // If local is newer than CloudKit, there might be propagation delay
-            // Wait 2 seconds and try again
+            // Wait briefly and try again (only for very recent changes)
             if localStats.lastUpdated > cloudKitStats.lastUpdated {
                 let timeDiff = localStats.lastUpdated.timeIntervalSince(cloudKitStats.lastUpdated)
-                if timeDiff < 60 { // Only retry if difference is less than 60 seconds (recent change)
-                    syncMonitor.logSync("Local is newer, waiting for CloudKit to propagate...")
-                    try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                if timeDiff < 10 { // Only retry if difference is less than 10 seconds (very recent change)
+                    syncMonitor.logSync("Local is newer by \(String(format: "%.1f", timeDiff))s, checking CloudKit again...")
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds (reduced from 2)
                     
                     // Retry download
                     if let retryStats = try await cloudKitService.downloadStatistics() {
@@ -414,13 +420,19 @@ class PersistenceService {
             syncMonitor.logSync("Comparing timestamps: CloudKit=\(cloudKitSettings.lastUpdated) vs Local=\(localSettings.lastUpdated)")
             syncMonitor.logSync("CloudKit theme: \(cloudKitSettings.themeTypeRawValue), Local theme: \(localSettings.themeTypeRawValue)")
             
+            // If timestamps are equal, we're already in sync - no need to do anything
+            if localSettings.lastUpdated == cloudKitSettings.lastUpdated {
+                syncMonitor.logSync("Local settings are up to date (same timestamp)")
+                return localSettings
+            }
+            
             // If local is newer than CloudKit, there might be propagation delay
-            // Wait 2 seconds and try again
+            // Wait briefly and try again (only for very recent changes)
             if localSettings.lastUpdated > cloudKitSettings.lastUpdated {
                 let timeDiff = localSettings.lastUpdated.timeIntervalSince(cloudKitSettings.lastUpdated)
-                if timeDiff < 60 { // Only retry if difference is less than 60 seconds (recent change)
-                    syncMonitor.logSync("Local is newer, waiting for CloudKit to propagate...")
-                    try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+                if timeDiff < 10 { // Only retry if difference is less than 10 seconds (very recent change)
+                    syncMonitor.logSync("Local is newer by \(String(format: "%.1f", timeDiff))s, checking CloudKit again...")
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds (reduced from 2)
                     
                     // Retry download
                     if let retrySettings = try await cloudKitService.downloadSettings() {

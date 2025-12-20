@@ -10,7 +10,8 @@ struct MistakesCounter: View {
     
     var body: some View {
         Text(game.mistakesText)
-            .font(.body.weight(.semibold))
+            .font(.appBody)
+            .fontWeight(.semibold)
             .foregroundColor(game.mistakes >= game.settings.mistakeLimit && game.settings.mistakeLimit > 0 ? theme.errorColor : theme.primaryAccent)
             .padding(.horizontal, 12)
             .frame(height: 44)
