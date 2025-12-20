@@ -206,48 +206,57 @@ class SudokuGame: ObservableObject {
     /// This refreshes statistics, settings, and checks for updated saved games
     /// that may have synced from CloudKit while the app was backgrounded.
     func reloadFromPersistence() {
+        guard persistenceService != nil else { return }
+        
+        Task {
+            await syncAllFromCloudKit()
+        }
+    }
+    
+    /// Syncs all data (settings, statistics, saved game) from CloudKit.
+    ///
+    /// This is the central sync method that should be called when the app launches
+    /// or returns to foreground.
+    func syncAllFromCloudKit() async {
         guard let persistenceService = persistenceService else { return }
         
-        // Sync from CloudKit in background
-        Task {
-            // Download latest game from CloudKit
-            if let freshSavedGame = await persistenceService.syncSavedGameFromCloudKit() {
-                // Update the board with CloudKit data
-                await MainActor.run {
-                    board = SavedGameState.unflatten(freshSavedGame.boardData)
-                    notes = SavedGameState.decodeNotes(freshSavedGame.notesData)
-                    solution = SavedGameState.unflatten(freshSavedGame.solutionData)
-                    initialBoard = SavedGameState.unflatten(freshSavedGame.initialBoardData)
-                    if let difficulty = Difficulty(rawValue: freshSavedGame.difficulty) {
-                        currentDifficulty = difficulty
-                    }
-                    elapsedTime = freshSavedGame.elapsedTime
-                    gameStartDate = freshSavedGame.startDate
-                    mistakes = freshSavedGame.mistakes
-                    isDailyChallenge = freshSavedGame.isDailyChallenge
-                    dailyChallengeDate = freshSavedGame.dailyChallengeDate
-                    hasSavedGame = true
-                    
-                    logger.info(self, "Game reloaded from CloudKit")
+        // Download latest game from CloudKit
+        if let freshSavedGame = await persistenceService.syncSavedGameFromCloudKit() {
+            // Update the board with CloudKit data
+            await MainActor.run {
+                board = SavedGameState.unflatten(freshSavedGame.boardData)
+                notes = SavedGameState.decodeNotes(freshSavedGame.notesData)
+                solution = SavedGameState.unflatten(freshSavedGame.solutionData)
+                initialBoard = SavedGameState.unflatten(freshSavedGame.initialBoardData)
+                if let difficulty = Difficulty(rawValue: freshSavedGame.difficulty) {
+                    currentDifficulty = difficulty
                 }
+                elapsedTime = freshSavedGame.elapsedTime
+                gameStartDate = freshSavedGame.startDate
+                mistakes = freshSavedGame.mistakes
+                isDailyChallenge = freshSavedGame.isDailyChallenge
+                dailyChallengeDate = freshSavedGame.dailyChallengeDate
+                hasSavedGame = true
+                
+                logger.info(self, "Game reloaded from CloudKit")
             }
-            
-            // Download latest settings from CloudKit
-            if let freshSettings = await persistenceService.syncSettingsFromCloudKit() {
-                await MainActor.run {
-                    settingsModel = freshSettings
-                    settings = SettingsAdapter.toStruct(from: freshSettings)
-                    logger.info(self, "Settings reloaded from CloudKit")
-                }
+        }
+        
+        // Download latest settings from CloudKit
+        if let freshSettings = await persistenceService.syncSettingsFromCloudKit() {
+            await MainActor.run {
+                settingsModel = freshSettings
+                settings = SettingsAdapter.toStruct(from: freshSettings)
+                logger.info(self, "Settings reloaded from CloudKit")
             }
-            
-            // Download latest statistics from CloudKit
-            if let freshStatistics = await persistenceService.syncStatisticsFromCloudKit() {
-                await MainActor.run {
-                    statsModel = freshStatistics
-                    stats = StatsAdapter.toStruct(from: freshStatistics)
-                    logger.info(self, "Statistics reloaded from CloudKit")
-                }
+        }
+        
+        // Download latest statistics from CloudKit
+        if let freshStatistics = await persistenceService.syncStatisticsFromCloudKit() {
+            await MainActor.run {
+                statsModel = freshStatistics
+                stats = StatsAdapter.toStruct(from: freshStatistics)
+                logger.info(self, "Statistics reloaded from CloudKit")
             }
         }
     }

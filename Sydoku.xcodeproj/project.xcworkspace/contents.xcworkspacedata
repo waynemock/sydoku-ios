@@ -4,4 +4,10 @@
    <FileRef
       location = "self:">
    </FileRef>
+   <FileRef
+      location = "group:LaunchBackgroundColor.colorsetContents.json">
+   </FileRef>
+   <FileRef
+      location = "group:LAUNCH_SCREEN_SETUP.md">
+   </FileRef>
 </Workspace>

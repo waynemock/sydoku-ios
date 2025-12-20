@@ -50,7 +50,7 @@ struct CloudKitInfo: View {
 							.font(.subheadline)
 							.foregroundColor(theme.secondaryText)
 					}
-					.padding(.top, 20)
+					.padding(.top, -50)
 					
 					// Content based on status
 					Group {
@@ -204,14 +204,16 @@ struct CloudKitInfo: View {
 			}
 			.buttonStyle(.plain)
 			
-			// Dismiss option for users who want to skip
-			Button(action: dismissPermanently) {
-				Text("Don't show this again")
-					.font(.subheadline)
-					.foregroundColor(theme.secondaryText)
+			// Only show "Don't show this again" if user hasn't already dismissed it
+			if !UserDefaults.standard.isSkipCloudKitCheck {
+				Button(action: dismissPermanently) {
+					Text("Don't show this again")
+						.font(.subheadline)
+						.foregroundColor(theme.secondaryText)
+				}
+				.buttonStyle(.plain)
+				.padding(.top, 8)
 			}
-			.buttonStyle(.plain)
-			.padding(.top, 8)
 		}
 	}
 	
@@ -267,7 +269,7 @@ struct CloudKitInfo: View {
 	}
 	
 	private func setupStep(number: String, text: String) -> some View {
-		HStack(alignment: .top, spacing: 12) {
+		HStack(alignment: .center, spacing: 12) {
 			Text(number)
 				.font(.headline)
 				.foregroundColor(.white)
@@ -280,6 +282,7 @@ struct CloudKitInfo: View {
 			Text(text)
 				.font(.body)
 				.foregroundColor(theme.secondaryText)
+				.frame(maxWidth: .infinity, alignment: .leading)
 		}
 	}
 	

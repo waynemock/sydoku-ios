@@ -22,9 +22,6 @@ struct MainView: View {
     /// Whether the settings sheet is showing.
     @State private var showingSettings = false
     
-    /// Whether the continue game alert is showing.
-    @State private var showingContinueAlert = false
-    
     /// Whether the expired daily challenge alert is showing.
     @State private var showingExpiredDailyAlert = false
     
@@ -36,6 +33,21 @@ struct MainView: View {
     
     /// Whether to show the auto error checking toast.
     @State private var showingErrorCheckingToast = false
+    
+    /// Whether the app is still loading (syncing from CloudKit).
+    @State private var isLoading = true
+    
+    /// Whether the sync is taking longer than expected.
+    @State private var isSlowConnection = false
+    
+    /// Whether the sync timed out (offline or slow connection).
+    @State private var syncTimedOut = false
+    
+    /// Whether a retry sync is currently in progress.
+    @State private var isRetrying = false
+    
+    /// Whether a background sync is in progress (after user dismissed loading overlay).
+    @State private var isBackgroundSyncing = false
     
     /// The current theme for the app.
     @State private var theme = Theme()
@@ -56,13 +68,161 @@ struct MainView: View {
     
     var body: some View {
         ZStack {
-            VStack {
+            // Main game interface (always present)
+            mainContent
+            
+            // Loading overlay (shown on top during sync)
+            if isLoading {
+                LaunchLoadingView(
+                    isSlowConnection: isSlowConnection,
+                    onCancel: {
+                        // User chose to continue - dismiss overlay but keep syncing in background
+                        withAnimation {
+                            isLoading = false
+                            isBackgroundSyncing = true
+                        }
+                        
+                        // Show new game picker or load saved game
+                        if game.hasSavedGame {
+                            if game.isDailyChallengeExpired {
+                                showingExpiredDailyAlert = true
+                            } else {
+                                game.loadSavedGame()
+                            }
+                        } else {
+                            showingNewGamePicker = true
+                        }
+                    }
+                )
+                .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: isLoading)
+        .environment(\.theme, theme)
+        .onAppear {
+            // Configure SwiftData persistence
+            let persistence = PersistenceService(modelContext: modelContext)
+            game.configurePersistence(persistenceService: persistence)
+            
+            loadTheme()
+            
+            // Sync from CloudKit with timeout
+            Task {
+                var didComplete = false
+                
+                // Race between sync, slow connection warning, and timeout
+                await withTaskGroup(of: String.self) { group in
+                    // Sync task
+                    group.addTask {
+                        await game.syncAllFromCloudKit()
+                        return "completed"
+                    }
+                    
+                    // Slow connection warning task (3 seconds)
+                    group.addTask {
+                        try? await Task.sleep(nanoseconds: 3_000_000_000)
+                        return "slow"
+                    }
+                    
+                    // Timeout task (10 seconds total)
+                    group.addTask {
+                        try? await Task.sleep(nanoseconds: 10_000_000_000)
+                        return "timeout"
+                    }
+                    
+                    // Process results
+                    for await result in group {
+                        if result == "completed" {
+                            didComplete = true
+                            group.cancelAll()
+                            break
+                        } else if result == "slow" {
+                            // Show slow connection warning in loading screen
+                            await MainActor.run {
+                                withAnimation {
+                                    isSlowConnection = true
+                                }
+                            }
+                        } else if result == "timeout" {
+                            // Timed out completely
+                            group.cancelAll()
+                            break
+                        }
+                    }
+                }
+                
+                // Now check if we have a saved game (potentially from CloudKit)
+                await MainActor.run {
+                    // Hide loading screen
+                    isLoading = false
+                    
+                    if didComplete {
+                        // Sync completed successfully
+                        isBackgroundSyncing = false
+                        syncTimedOut = false
+                    } else {
+                        // Sync timed out or failed
+                        if isBackgroundSyncing {
+                            // Already dismissed overlay, just stop showing background sync
+                            isBackgroundSyncing = false
+                        }
+                        syncTimedOut = true
+                    }
+                    
+                    if game.hasSavedGame {
+                        // Check if it's an expired daily challenge
+                        if game.isDailyChallengeExpired {
+                            showingExpiredDailyAlert = true
+                        } else {
+                            // Automatically load the saved game (no alert needed)
+                            game.loadSavedGame()
+                        }
+                    } else {
+                        // No saved game - show the new game picker so user can choose difficulty
+                        showingNewGamePicker = true
+                    }
+                }
+            }
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            switch newPhase {
+            case .active:
+                // App came to foreground - refresh game data from CloudKit
+                game.reloadFromPersistence()
+            case .background:
+                // App going to background - save current state
+                if !game.isComplete && !game.isGameOver {
+                    game.saveGame()
+                }
+            default:
+                break
+            }
+        }
+        .onChange(of: game.settings.themeType) { _, _ in
+            loadTheme()
+        }
+        .onChange(of: game.settings.preferredColorScheme) { _, _ in
+            loadTheme()
+        }
+        .onChange(of: systemColorScheme) { _, _ in
+            loadTheme()
+        }
+    }
+    
+    /// The main game content shown after loading completes.
+    private var mainContent: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                // Sync banner (timeout or background syncing)
+                if syncTimedOut || isBackgroundSyncing {
+                    syncBanner
+                }
+                
                 // Header with title and controls
                 HeaderView(
                     game: game,
                     theme: theme,
                     showingNewGamePicker: $showingNewGamePicker,
-                    showingContinueAlert: $showingContinueAlert,
                     showingStats: $showingStats,
                     showingSettings: $showingSettings,
                     showingAbout: $showingAbout,
@@ -192,33 +352,17 @@ struct MainView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sensoryFeedback(.error, trigger: game.triggerErrorHaptic)
         .sensoryFeedback(.success, trigger: game.triggerSuccessHaptic)
-        .alert(isPresented: Binding(
-            get: { showingContinueAlert || showingExpiredDailyAlert },
-            set: { if !$0 { showingContinueAlert = false; showingExpiredDailyAlert = false } }
-        )) {
-            if showingExpiredDailyAlert {
-                return Alert(
-                    title: Text("Yesterday's Daily Challenge"),
-                    message: Text("This daily challenge is from a previous day. You can continue playing, but it won't count toward your statistics or streak. Start today's challenge instead?"),
-                    primaryButton: .default(Text("Today's Challenge")) {
-                        showingNewGamePicker = true
-                    },
-                    secondaryButton: .cancel(Text("Continue Anyway")) {
-                        game.loadSavedGame()
-                    }
-                )
-            } else {
-                return Alert(
-                    title: Text("Saved Game Found"),
-                    message: Text("Would you like to continue your saved game or start a new one?"),
-                    primaryButton: .default(Text("Continue")) {
-                        game.loadSavedGame()
-                    },
-                    secondaryButton: .default(Text("New Game")) {
-                        showingNewGamePicker = true
-                    }
-                )
-            }
+        .alert(isPresented: $showingExpiredDailyAlert) {
+            Alert(
+                title: Text("Yesterday's Daily Challenge"),
+                message: Text("This daily challenge is from a previous day. You can continue playing, but it won't count toward your statistics or streak. Start today's challenge instead?"),
+                primaryButton: .default(Text("Today's Challenge")) {
+                    showingNewGamePicker = true
+                },
+                secondaryButton: .cancel(Text("Continue Anyway")) {
+                    game.loadSavedGame()
+                }
+            )
         }
         .newGamePicker(isPresented: $showingNewGamePicker, game: game, theme: theme)
         .onChange(of: showingStats) { _, isShowing in
@@ -241,47 +385,90 @@ struct MainView: View {
                 game.startTimer()
             }
         }
-        .onAppear {
-            // Configure SwiftData persistence
-            let persistence = PersistenceService(modelContext: modelContext)
-            game.configurePersistence(persistenceService: persistence)
+    }
+    
+    /// Banner shown for sync status (background syncing or timeout).
+    private var syncBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: isBackgroundSyncing || isRetrying ? "icloud.and.arrow.down" : "exclamationmark.icloud")
+                .font(.title3)
+                .foregroundStyle(.white)
             
-            loadTheme()
-            if game.hasSavedGame {
-                // Check if it's an expired daily challenge
-                if game.isDailyChallengeExpired {
-                    showingExpiredDailyAlert = true
-                } else {
-                    showingContinueAlert = true
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isBackgroundSyncing || isRetrying ? "Syncing..." : "Connection Issue")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(isBackgroundSyncing || isRetrying ? "Syncing with iCloud in the background" : "Playing offline with local data")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+            
+            Spacer()
+            
+            // Show retry button only if not currently syncing
+            if !isBackgroundSyncing && !isRetrying {
+                Button {
+                    // Retry sync
+                    isRetrying = true
+                    Task {
+                        await game.syncAllFromCloudKit()
+                        // If we get here, sync completed successfully
+                        await MainActor.run {
+                            withAnimation {
+                                syncTimedOut = false
+                                isRetrying = false
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        if isRetrying {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        }
+                        Text("Retry")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(.white.opacity(0.2))
+                    )
                 }
             } else {
-                // No saved game - show the new game picker so user can choose difficulty
-                showingNewGamePicker = true
+                // Show progress indicator when syncing
+                ProgressView()
+                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                    .scaleEffect(0.9)
             }
-        }
-        .onChange(of: scenePhase) { oldPhase, newPhase in
-            switch newPhase {
-            case .active:
-                // App came to foreground - refresh game data from CloudKit
-                game.reloadFromPersistence()
-            case .background:
-                // App going to background - save current state
-                if !game.isComplete && !game.isGameOver {
-                    game.saveGame()
+            
+            Button {
+                withAnimation {
+                    syncTimedOut = false
+                    isRetrying = false
+                    isBackgroundSyncing = false
                 }
-            default:
-                break
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 20, height: 20)
             }
+            .disabled(isRetrying || isBackgroundSyncing)
         }
-        .onChange(of: game.settings.themeType) { _, _ in
-            loadTheme()
-        }
-        .onChange(of: game.settings.preferredColorScheme) { _, _ in
-            loadTheme()
-        }
-        .onChange(of: systemColorScheme) { _, _ in
-            loadTheme()
-        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            LinearGradient(
+                colors: isBackgroundSyncing || isRetrying ? [.blue, .blue.opacity(0.8)] : [.orange, .orange.opacity(0.8)],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
     
     /// Loads the theme from settings.

@@ -15,9 +15,6 @@ struct HeaderView: View {
     /// Binding to show/hide the new game picker.
     @Binding var showingNewGamePicker: Bool
     
-    /// Binding to show/hide the continue alert.
-    @Binding var showingContinueAlert: Bool
-    
     /// Binding to show/hide the statistics sheet.
     @Binding var showingStats: Bool
     
@@ -47,7 +44,6 @@ struct HeaderView: View {
         game: SudokuGame,
         theme: Theme,
         showingNewGamePicker: Binding<Bool>,
-        showingContinueAlert: Binding<Bool>,
         showingStats: Binding<Bool>,
         showingSettings: Binding<Bool>,
         showingAbout: Binding<Bool>,
@@ -57,7 +53,6 @@ struct HeaderView: View {
         self.game = game
         self.theme = theme
         self._showingNewGamePicker = showingNewGamePicker
-        self._showingContinueAlert = showingContinueAlert
         self._showingStats = showingStats
         self._showingSettings = showingSettings
         self._showingAbout = showingAbout
@@ -98,18 +93,9 @@ struct HeaderView: View {
                 HStack(spacing: 12) {
                     // New game button
                     Button(action: {
-                        // Check if we're at launch with a saved game
-                        let isAtLaunch = game.initialBoard.allSatisfy({ $0.allSatisfy({ $0 == 0 }) })
-                        
+                        // Always show new game picker - no longer show continue alert
                         game.stopTimer()
-                        
-                        if isAtLaunch && game.hasSavedGame {
-                            // At launch - show continue alert
-                            showingContinueAlert = true
-                        } else {
-                            // Mid-game or no saved game - go directly to new game picker
-                            showingNewGamePicker = true
-                        }
+                        showingNewGamePicker = true
                     }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 40))

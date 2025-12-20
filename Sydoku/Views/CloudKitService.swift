@@ -93,7 +93,7 @@ class CloudKitService {
         record["lastSaved"] = lastSaved as CKRecordValue
         
         do {
-            let savedRecord = try await database.save(record)
+            _ = try await database.save(record)
             syncMonitor.logSync("✅ Saved game uploaded successfully (timestamp: \(lastSaved))")
         } catch {
             syncMonitor.logError("Failed to upload saved game: \(error.localizedDescription)")
@@ -322,7 +322,7 @@ class CloudKitService {
         record["lastUpdated"] = timestamp as CKRecordValue
         
         do {
-            let savedRecord = try await database.save(record)
+            _ = try await database.save(record)
             syncMonitor.logSync("✅ Settings uploaded successfully (timestamp: \(timestamp), theme: \(settings.themeTypeRawValue))")
         } catch {
             syncMonitor.logError("Failed to upload settings: \(error.localizedDescription)")
