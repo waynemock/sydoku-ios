@@ -20,7 +20,7 @@ struct TimerButtonView: View {
                         .foregroundColor(theme.primaryAccent)
                 }
                 .padding(.horizontal, 12)
-                .frame(height: 44)
+                .frame(minHeight: 36)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(theme.primaryAccent.opacity(0.2))

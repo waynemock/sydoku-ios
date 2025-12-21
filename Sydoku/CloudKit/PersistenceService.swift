@@ -226,6 +226,7 @@ class PersistenceService {
         elapsedTime: TimeInterval,
         startDate: Date,
         mistakes: Int,
+        hints: [[Int]],
         isDailyChallenge: Bool,
         dailyChallengeDate: String?
     ) {
@@ -237,6 +238,7 @@ class PersistenceService {
         let boardData = SavedGameState.flatten(board)
         let solutionData = SavedGameState.flatten(solution)
         let initialBoardData = SavedGameState.flatten(initialBoard)
+        let hintsData = SavedGameState.flatten(hints)
         let timestamp = Date()
         
         let savedGame = SavedGameState(
@@ -248,6 +250,7 @@ class PersistenceService {
             elapsedTime: elapsedTime,
             startDate: startDate,
             mistakes: mistakes,
+            hintsData: hintsData,
             isDailyChallenge: isDailyChallenge,
             dailyChallengeDate: dailyChallengeDate,
             lastSaved: timestamp
@@ -341,6 +344,7 @@ class PersistenceService {
                     elapsedTime: cloudKitGame.elapsedTime,
                     startDate: cloudKitGame.startDate,
                     mistakes: cloudKitGame.mistakes,
+                    hintsData: cloudKitGame.hintsData,
                     isDailyChallenge: cloudKitGame.isDailyChallenge,
                     dailyChallengeDate: cloudKitGame.dailyChallengeDate,
                     lastSaved: cloudKitGame.lastSaved

@@ -14,9 +14,9 @@ struct SudokuBoard: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            ForEach(0..<9, id: \.self) { row in
+            ForEach(0..<SudokuGame.size, id: \.self) { row in
                 HStack(spacing: 0) {
-                    ForEach(0..<9, id: \.self) { col in
+                    ForEach(0..<SudokuGame.size, id: \.self) { col in
                         SudokuCell(
                             value: game.board[row][col],
                             cellNotes: game.notes[row][col],
@@ -25,7 +25,7 @@ struct SudokuBoard: View {
                             hasConflict: game.getConflicts(row: row, col: col),
                             isHighlighted: game.settings.highlightSameNumbers && game.highlightedNumber != nil && game.board[row][col] == game.highlightedNumber,
                             isLastPlaced: game.lastPlacedCell?.row == row && game.lastPlacedCell?.col == col,
-                            isHintCell: game.hintCell?.row == row && game.hintCell?.col == col,
+                            isHintCell: game.hasHint(row: row, col: col),
                             cellSize: cellSize,
                             action: {
                                 game.selectedCell = (row, col)

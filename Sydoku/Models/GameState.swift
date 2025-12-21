@@ -16,10 +16,4 @@ struct GameState {
     /// A 9x9 grid where each cell contains a set of candidate numbers
     /// that the player has marked as possibilities.
     var notes: [[Set<Int>]]
-    
-    /// The number of mistakes made up to this point in the game.
-    ///
-    /// This count is preserved across undo/redo operations to maintain
-    /// accurate mistake tracking.
-    var mistakes: Int
 }

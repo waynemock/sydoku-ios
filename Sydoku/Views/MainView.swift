@@ -61,15 +61,7 @@ struct MainView: View {
     /// The environment color scheme.
     @Environment(\.colorScheme) var systemColorScheme
     
-    /// The horizontal size class for responsive layout.
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    
-    /// Whether to show the mistakes counter.
-    private var showMistakes: Bool {
-        game.settings.autoErrorChecking && (game.settings.mistakeLimit > 0 || game.mistakes > 0)
-    }
-    
-    var body: some View {
+     var body: some View {
         ZStack {
             // Main game interface (always present)
             mainContent
@@ -226,42 +218,20 @@ struct MainView: View {
                         InputControls(game: game, theme: theme)
                         Spacer()
                     }
-                    
-                    // iPad: Mistakes counter overlaid on the left, aligned with board edge
-                    if horizontalSizeClass == .regular && showMistakes {
-                        HStack {
-                            MistakesCounter(game: game, theme: theme)
-                                .padding(.leading, 24) // Match board padding (16) + additional spacing
-                            Spacer()
-                        }
-                    }
                 }
                 
                 // Number Pad
                 NumberPad(game: game)
                     .disabled(game.isGenerating || game.isPaused || game.isGameOver)
                 
-                // Bottom row layout (iPhone only)
-                if horizontalSizeClass == .compact {
-                    // iPhone: Timer centered when no mistakes, side by side when mistakes showing
-                    if showMistakes {
-                        // Mistakes showing: side by side
-                        HStack(spacing: 16) {
-                            MistakesCounter(game: game, theme: theme)
-                            Spacer()
-                            TimerButtonView(game: game, theme: theme)
-                        }
-                        .padding(.horizontal)
-                    } else {
-                        // No mistakes: timer centered
-                        HStack {
-                            Spacer()
-                            TimerButtonView(game: game, theme: theme)
-                            Spacer()
-                        }
-                        .padding(.horizontal)
-                    }
+                // Mistakes and Timer, always reserve space for it
+                HStack(spacing: 16) {
+                    MistakesCounter(game: game, theme: theme)
+                    Spacer()
+                    TimerButtonView(game: game, theme: theme)
                 }
+                .padding(.horizontal)
+                .frame(maxWidth: 600, minHeight: 36)  // Limit to portrait-like width
                 
                 Spacer()
             }

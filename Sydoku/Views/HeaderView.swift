@@ -30,9 +30,6 @@ struct HeaderView: View {
     /// Binding to show/hide the CloudKit info sheet.
     @Binding var showingCloudKitInfo: Bool
     
-    /// Environment horizontal size class to detect iPhone vs iPad.
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    
     /// The shared CloudKit status manager from the app environment.
     @EnvironmentObject private var cloudKitStatus: CloudKitStatus
     
@@ -62,11 +59,6 @@ struct HeaderView: View {
     
     var body: some View {
         ZStack {
-            // Centered timer (only on iPad)
-            if horizontalSizeClass == .regular {
-                TimerButtonView(game: game, theme: theme)
-            }
-            
             // Left and right content
             HStack {
                 // Left side: Title and puzzle info

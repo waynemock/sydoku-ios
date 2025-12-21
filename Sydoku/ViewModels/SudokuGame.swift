@@ -8,7 +8,8 @@ import Combine
 /// puzzle generation, user interactions, timer, statistics, undo/redo, hints,
 /// daily challenges, and game settings.
 class SudokuGame: ObservableObject {
-    static let numberOfCells = 81
+    static let size: Int = 9
+    static let numberOfCells = size * size
     
     // MARK: - Published Properties
     
@@ -57,6 +58,9 @@ class SudokuGame: ObservableObject {
     /// The number of mistakes made in the current game.
     @Published var mistakes = 0
     
+    /// The number of hints taken in the current game.
+    @Published var hints: [[Int]]
+    
     /// Whether the game has ended (e.g., reached mistake limit).
     @Published var isGameOver = false
     
@@ -68,9 +72,6 @@ class SudokuGame: ObservableObject {
     
     /// Whether to show the confetti celebration animation.
     @Published var showConfetti = false
-    
-    /// The cell coordinates highlighted by the current hint.
-    @Published var hintCell: (row: Int, col: Int)?
     
     /// Whether the current game is a daily challenge.
     @Published var isDailyChallenge = false
@@ -173,10 +174,11 @@ class SudokuGame: ObservableObject {
     /// The persistence service should be configured after initialization
     /// by calling `configurePersistence(persistenceService:)`.
     init() {
-        board = Array(repeating: Array(repeating: 0, count: 9), count: 9)
-        notes = Array(repeating: Array(repeating: Set<Int>(), count: 9), count: 9)
-        solution = Array(repeating: Array(repeating: 0, count: 9), count: 9)
-        initialBoard = Array(repeating: Array(repeating: 0, count: 9), count: 9)
+        board = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
+        notes = Array(repeating: Array(repeating: Set<Int>(), count: SudokuGame.size), count: SudokuGame.size)
+        solution = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
+        initialBoard = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
+        hints = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
     }
     
     // MARK: - Persistence Configuration
@@ -234,6 +236,7 @@ class SudokuGame: ObservableObject {
                 elapsedTime = freshSavedGame.elapsedTime
                 gameStartDate = freshSavedGame.startDate
                 mistakes = freshSavedGame.mistakes
+                hints = SavedGameState.unflatten(freshSavedGame.hintsData)
                 isDailyChallenge = freshSavedGame.isDailyChallenge
                 dailyChallengeDate = freshSavedGame.dailyChallengeDate
                 hasSavedGame = true
@@ -338,6 +341,7 @@ class SudokuGame: ObservableObject {
             elapsedTime: elapsedTime,
             startDate: gameStartDate,
             mistakes: mistakes,
+            hints: hints,
             isDailyChallenge: isDailyChallenge,
             dailyChallengeDate: dailyChallengeDate
         )
@@ -375,6 +379,7 @@ class SudokuGame: ObservableObject {
             elapsedTime = savedGame.elapsedTime
             gameStartDate = savedGame.startDate
             mistakes = savedGame.mistakes
+            hints = SavedGameState.unflatten(savedGame.hintsData)
             isDailyChallenge = savedGame.isDailyChallenge
             dailyChallengeDate = savedGame.dailyChallengeDate
             hasSavedGame = true
@@ -398,7 +403,7 @@ class SudokuGame: ObservableObject {
     
     // MARK: - Undo/Redo
     private func saveState() {
-        let state = GameState(board: board, notes: notes, mistakes: mistakes)
+        let state = GameState(board: board, notes: notes)
         undoStack.append(state)
         if undoStack.count > maxUndoSteps {
             undoStack.removeFirst()
@@ -408,13 +413,12 @@ class SudokuGame: ObservableObject {
     
     func undo() {
         guard !undoStack.isEmpty else { return }
-        let currentState = GameState(board: board, notes: notes, mistakes: mistakes)
+        let currentState = GameState(board: board, notes: notes)
         redoStack.append(currentState)
         
         let previousState = undoStack.removeLast()
         board = previousState.board
         notes = previousState.notes
-        mistakes = previousState.mistakes
         checkCompletion()
         
         // Save after undo (with debounce)
@@ -423,13 +427,12 @@ class SudokuGame: ObservableObject {
     
     func redo() {
         guard !redoStack.isEmpty else { return }
-        let currentState = GameState(board: board, notes: notes, mistakes: mistakes)
+        let currentState = GameState(board: board, notes: notes)
         undoStack.append(currentState)
         
         let nextState = redoStack.removeLast()
         board = nextState.board
         notes = nextState.notes
-        mistakes = nextState.mistakes
         checkCompletion()
         
         // Save after redo (with debounce)
@@ -459,7 +462,7 @@ class SudokuGame: ObservableObject {
             
             if let seed = seed {
                 var generator = SeededRandomNumberGenerator(seed: seed)
-                var newSolution = Array(repeating: Array(repeating: 0, count: 9), count: 9)
+                var newSolution = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
                 self.fillBoard(&newSolution, using: &generator)
                 let newBoard = self.removeNumbersWithUniqueness(from: newSolution, count: difficulty.cellsToRemove, using: &generator)
                 
@@ -467,7 +470,7 @@ class SudokuGame: ObservableObject {
                     self.finalizePuzzleGeneration(solution: newSolution, board: newBoard, difficulty: difficulty)
                 }
             } else {
-                var newSolution = Array(repeating: Array(repeating: 0, count: 9), count: 9)
+                var newSolution = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
                 self.fillBoard(&newSolution)
                 let newBoard = self.removeNumbersWithUniqueness(from: newSolution, count: difficulty.cellsToRemove)
                 
@@ -501,7 +504,7 @@ class SudokuGame: ObservableObject {
         
         self.solution = solution
         self.board = board
-        self.notes = Array(repeating: Array(repeating: Set<Int>(), count: 9), count: 9)
+        self.notes = Array(repeating: Array(repeating: Set<Int>(), count: SudokuGame.size), count: SudokuGame.size)
         self.initialBoard = board
         self.isComplete = false
         self.hasError = false
@@ -515,6 +518,7 @@ class SudokuGame: ObservableObject {
         self.gameStartDate = Date()
         self.isPaused = false
         self.mistakes = 0
+        self.hints = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
         self.showConfetti = false
         
         self.stats.recordStart(difficulty: difficulty.rawValue)
@@ -541,10 +545,10 @@ class SudokuGame: ObservableObject {
     // MARK: - Board Filling
     @discardableResult
     private func fillBoard(_ grid: inout [[Int]], using generator: inout SeededRandomNumberGenerator) -> Bool {
-        for row in 0..<9 {
-            for col in 0..<9 {
+        for row in 0..<SudokuGame.size {
+            for col in 0..<SudokuGame.size {
                 if grid[row][col] == 0 {
-                    let nums = (1...9).shuffled(using: &generator)
+                    let nums = (1...SudokuGame.size).shuffled(using: &generator)
                     for num in nums {
                         if isValid(grid, row, col, num) {
                             grid[row][col] = num
@@ -563,10 +567,10 @@ class SudokuGame: ObservableObject {
     
     @discardableResult
     private func fillBoard(_ grid: inout [[Int]]) -> Bool {
-        for row in 0..<9 {
-            for col in 0..<9 {
+        for row in 0..<SudokuGame.size {
+            for col in 0..<SudokuGame.size {
                 if grid[row][col] == 0 {
-                    let nums = (1...9).shuffled()
+                    let nums = (1...SudokuGame.size).shuffled()
                     for num in nums {
                         if isValid(grid, row, col, num) {
                             grid[row][col] = num
@@ -596,8 +600,8 @@ class SudokuGame: ObservableObject {
             var positions = [(Int, Int)]()
             
             // Collect all non-zero positions
-            for r in 0..<9 {
-                for c in 0..<9 {
+            for r in 0..<SudokuGame.size {
+                for c in 0..<SudokuGame.size {
                     if puzzle[r][c] != 0 {
                         positions.append((r, c))
                     }
@@ -649,8 +653,8 @@ class SudokuGame: ObservableObject {
             var positions = [(Int, Int)]()
             
             // Collect all non-zero positions
-            for r in 0..<9 {
-                for c in 0..<9 {
+            for r in 0..<SudokuGame.size {
+                for c in 0..<SudokuGame.size {
                     if puzzle[r][c] != 0 {
                         positions.append((r, c))
                     }
@@ -702,8 +706,8 @@ class SudokuGame: ObservableObject {
         var emptyRow = -1
         var emptyCol = -1
         
-        outer: for r in 0..<9 {
-            for c in 0..<9 {
+        outer: for r in 0..<SudokuGame.size {
+            for c in 0..<SudokuGame.size {
                 if grid[r][c] == 0 {
                     emptyRow = r
                     emptyCol = c
@@ -717,7 +721,7 @@ class SudokuGame: ObservableObject {
             return
         }
         
-        for num in 1...9 {
+        for num in 1...SudokuGame.size {
             if isValid(grid, emptyRow, emptyCol, num) {
                 grid[emptyRow][emptyCol] = num
                 countSolutions(&grid, &count, maxCount: maxCount)
@@ -729,11 +733,11 @@ class SudokuGame: ObservableObject {
     }
     
     func isValid(_ grid: [[Int]], _ row: Int, _ col: Int, _ num: Int) -> Bool {
-        for c in 0..<9 {
+        for c in 0..<SudokuGame.size {
             if grid[row][c] == num { return false }
         }
         
-        for r in 0..<9 {
+        for r in 0..<SudokuGame.size {
             if grid[r][col] == num { return false }
         }
         
@@ -806,6 +810,7 @@ class SudokuGame: ObservableObject {
             saveState()
             board[cell.row][cell.col] = 0
             notes[cell.row][cell.col].removeAll()
+            // We do not clear any hints already placed in a cell
             hasError = false
             isComplete = false
             
@@ -820,13 +825,14 @@ class SudokuGame: ObservableObject {
     /// Sudoku rules in the cell's row, column, and 3x3 box.
     func autoFillNotes() {
         saveState()
-        for r in 0..<9 {
-            for c in 0..<9 {
+        for r in 0..<SudokuGame.size {
+            for c in 0..<SudokuGame.size {
                 if board[r][c] == 0 && initialBoard[r][c] == 0 {
                     notes[r][c].removeAll()
-                    for num in 1...9 {
+                    for num in 1...SudokuGame.size {
                         if isValid(board, r, c, num) {
                             notes[r][c].insert(num)
+                            hints[r][c] = 1
                         }
                     }
                 }
@@ -845,12 +851,12 @@ class SudokuGame: ObservableObject {
     ///   - num: The number that was placed.
     private func removeNumberFromRelatedNotes(row: Int, col: Int, num: Int) {
         // Remove from same row
-        for c in 0..<9 {
+        for c in 0..<SudokuGame.size {
             notes[row][c].remove(num)
         }
         
         // Remove from same column
-        for r in 0..<9 {
+        for r in 0..<SudokuGame.size {
             notes[r][col].remove(num)
         }
         
@@ -867,8 +873,8 @@ class SudokuGame: ObservableObject {
     /// Clears all notes from all cells in the puzzle.
     func clearAllNotes() {
         saveState()
-        for r in 0..<9 {
-            for c in 0..<9 {
+        for r in 0..<SudokuGame.size {
+            for c in 0..<SudokuGame.size {
                 notes[r][c].removeAll()
             }
         }
@@ -884,8 +890,8 @@ class SudokuGame: ObservableObject {
         }
         
         hasError = false
-        for r in 0..<9 {
-            for c in 0..<9 {
+        for r in 0..<SudokuGame.size {
+            for c in 0..<SudokuGame.size {
                 if board[r][c] != solution[r][c] {
                     hasError = true
                     return
@@ -936,8 +942,8 @@ class SudokuGame: ObservableObject {
         var bestCell: (row: Int, col: Int)? = nil
         var fewestCandidates = 10
         
-        for r in 0..<9 {
-            for c in 0..<9 {
+        for r in 0..<SudokuGame.size {
+            for c in 0..<SudokuGame.size {
                 // Only consider empty cells without any notes
                 if board[r][c] == 0 && notes[r][c].isEmpty {
                     let candidates = getPossibleNumbers(row: r, col: c)
@@ -954,28 +960,28 @@ class SudokuGame: ObservableObject {
             let candidates = getPossibleNumbers(row: cell.row, col: cell.col)
             saveState()
             notes[cell.row][cell.col] = candidates
-            hintCell = cell
             selectedCell = cell
+            hints[cell.row][cell.col] = 1
         }
     }
     
-    func resetHints() {
-        hintCell = nil
+    func hasHint(row: Int, col: Int) -> Bool {
+        return hints[row][col] == 1
     }
     
     // Helper function to get possible numbers for a cell
     private func getPossibleNumbers(row: Int, col: Int) -> Set<Int> {
-        var possible = Set(1...9)
+        var possible = Set(1...SudokuGame.size)
         
         // Remove numbers in the same row
-        for c in 0..<9 {
+        for c in 0..<SudokuGame.size {
             if board[row][c] != 0 {
                 possible.remove(board[row][c])
             }
         }
         
         // Remove numbers in the same column
-        for r in 0..<9 {
+        for r in 0..<SudokuGame.size {
             if board[r][col] != 0 {
                 possible.remove(board[r][col])
             }
@@ -1027,11 +1033,11 @@ class SudokuGame: ObservableObject {
     func loadFromCode(_ code: String) -> Bool {
         guard code.count == Self.numberOfCells else { return false }
         
-        var newBoard = Array(repeating: Array(repeating: 0, count: 9), count: 9)
+        var newBoard = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
         var index = 0
         
-        for r in 0..<9 {
-            for c in 0..<9 {
+        for r in 0..<SudokuGame.size {
+            for c in 0..<SudokuGame.size {
                 let char = code[code.index(code.startIndex, offsetBy: index)]
                 if let num = Int(String(char)), num >= 0 && num <= 9 {
                     newBoard[r][c] = num
@@ -1050,8 +1056,9 @@ class SudokuGame: ObservableObject {
         board = newBoard
         initialBoard = newBoard
         solution = solutionBoard
-        notes = Array(repeating: Array(repeating: Set<Int>(), count: 9), count: 9)
+        notes = Array(repeating: Array(repeating: Set<Int>(), count: SudokuGame.size), count: SudokuGame.size)
         mistakes = 0
+        hints = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
         elapsedTime = 0
         isComplete = false
         isGameOver = false
@@ -1062,10 +1069,10 @@ class SudokuGame: ObservableObject {
     }
     
     private func solvePuzzle(_ grid: inout [[Int]]) -> Bool {
-        for row in 0..<9 {
-            for col in 0..<9 {
+        for row in 0..<SudokuGame.size {
+            for col in 0..<SudokuGame.size {
                 if grid[row][col] == 0 {
-                    for num in 1...9 {
+                    for num in 1...SudokuGame.size {
                         if isValid(grid, row, col, num) {
                             grid[row][col] = num
                             if solvePuzzle(&grid) {
@@ -1083,8 +1090,8 @@ class SudokuGame: ObservableObject {
     
     func getNumberCount(_ num: Int) -> Int {
         var count = 0
-        for r in 0..<9 {
-            for c in 0..<9 {
+        for r in 0..<SudokuGame.size {
+            for c in 0..<SudokuGame.size {
                 if board[r][c] == num {
                     count += 1
                 }

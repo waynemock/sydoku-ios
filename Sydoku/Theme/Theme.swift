@@ -147,9 +147,9 @@ struct Theme {
         primaryAccent.opacity(0.2)
     }
     
-    /// Color for hint cell background.
+    /// Color for hint cell background color.
     var hintCellColor: Color {
-        successColor.opacity(0.4)
+        Color.yellow.opacity(0.2)
     }
     
     /// Gradient for glass effects.

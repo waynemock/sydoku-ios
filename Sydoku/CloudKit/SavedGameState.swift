@@ -37,6 +37,9 @@ final class SavedGameState {
     
     /// Number of mistakes made.
     var mistakes: Int = 0
+
+    /// The cells that had hints added
+    var hintsData: [Int] = []
     
     /// Whether this is a daily challenge.
     var isDailyChallenge: Bool = false
@@ -57,6 +60,7 @@ final class SavedGameState {
         elapsedTime: TimeInterval,
         startDate: Date,
         mistakes: Int,
+        hintsData: [Int],
         isDailyChallenge: Bool,
         dailyChallengeDate: String?,
         lastSaved: Date = Date()
@@ -69,6 +73,7 @@ final class SavedGameState {
         self.elapsedTime = elapsedTime
         self.startDate = startDate
         self.mistakes = mistakes
+        self.hintsData = hintsData
         self.isDailyChallenge = isDailyChallenge
         self.dailyChallengeDate = dailyChallengeDate
         self.lastSaved = lastSaved
@@ -81,10 +86,13 @@ final class SavedGameState {
     
     /// Converts a flat array back to a 9x9 2D array.
     static func unflatten(_ data: [Int]) -> [[Int]] {
+        guard data.count == SudokuGame.numberOfCells else {
+            return Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
+        }
         var grid: [[Int]] = []
-        for i in 0..<9 {
-            let start = i * 9
-            let end = start + 9
+        for i in 0..<SudokuGame.size {
+            let start = i * SudokuGame.size
+            let end = start + SudokuGame.size
             grid.append(Array(data[start..<end]))
         }
         return grid
@@ -101,7 +109,7 @@ final class SavedGameState {
     /// Decodes notes Data back to a 9x9 grid of sets.
     static func decodeNotes(_ data: Data) -> [[Set<Int>]] {
         guard let notesArray = try? JSONDecoder().decode([[[Int]]].self, from: data) else {
-            return Array(repeating: Array(repeating: Set<Int>(), count: 9), count: 9)
+            return Array(repeating: Array(repeating: Set<Int>(), count: SudokuGame.size), count: SudokuGame.size)
         }
         return notesArray.map { row in
             row.map { Set($0) }

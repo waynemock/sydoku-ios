@@ -8,16 +8,23 @@ struct MistakesCounter: View {
     /// The current theme for styling.
     var theme: Theme
     
+    /// Whether to show the mistakes counter.
+    private var showMistakes: Bool {
+        game.settings.autoErrorChecking && (game.settings.mistakeLimit > 0 || game.mistakes > 0)
+    }
+    
     var body: some View {
-        Text(game.mistakesText)
-            .font(.appBody)
-            .fontWeight(.semibold)
-            .foregroundColor(game.mistakes >= game.settings.mistakeLimit && game.settings.mistakeLimit > 0 ? theme.errorColor : theme.primaryAccent)
-            .padding(.horizontal, 12)
-            .frame(height: 44)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(theme.primaryAccent.opacity(0.2))
-            )
+        if showMistakes {
+            Text(game.mistakesText)
+                .font(.appBody)
+                .fontWeight(.semibold)
+                .foregroundColor(game.mistakes >= game.settings.mistakeLimit && game.settings.mistakeLimit > 0 ? theme.errorColor : theme.primaryAccent)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(theme.primaryAccent.opacity(0.2))
+                )
+        }
     }
 }

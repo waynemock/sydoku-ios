@@ -133,6 +133,7 @@ class CloudKitService {
                   let elapsedTime = record["elapsedTime"] as? Double,
                   let startDate = record["startDate"] as? Date,
                   let mistakes = record["mistakes"] as? Int,
+                  let hintsData = record["hintsData"] as? [Int],
                   let isDailyChallengeInt = record["isDailyChallenge"] as? Int,
                   let lastSaved = record["lastSaved"] as? Date else {
                 logError("Failed to parse saved game record")
@@ -153,6 +154,7 @@ class CloudKitService {
                 elapsedTime: elapsedTime,
                 startDate: startDate,
                 mistakes: mistakes,
+                hintsData: hintsData,
                 isDailyChallenge: isDailyChallenge,
                 dailyChallengeDate: (dailyChallengeDate?.isEmpty == false) ? dailyChallengeDate : nil,
                 lastSaved: lastSaved
@@ -404,6 +406,7 @@ struct CloudKitSavedGame {
     let elapsedTime: TimeInterval
     let startDate: Date
     let mistakes: Int
+    let hintsData: [Int]
     let isDailyChallenge: Bool
     let dailyChallengeDate: String?
     let lastSaved: Date
