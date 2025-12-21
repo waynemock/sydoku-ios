@@ -67,9 +67,9 @@
 			path = SydokuUITests;
 			sourceTree = "<group>";
 		};
-		B0E5DCF12EF6E241008E8106 /* Docs */ = {
+		B0E5DCF12EF6E241008E8106 /* Claudes Musing */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Docs;
+			path = "Claudes Musing";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -103,7 +103,7 @@
 		B0C279EE2EEF2D9000D4B294 = {
 			isa = PBXGroup;
 			children = (
-				B0E5DCF12EF6E241008E8106 /* Docs */,
+				B0E5DCF12EF6E241008E8106 /* Claudes Musing */,
 				B04C34F62EEF773000F59C4F /* LICENSE */,
 				B04C34F82EEF7B8000F59C4F /* README.md */,
 				B08F476A2EEFBEAD00C13E1B /* Sydoku */,
@@ -149,7 +149,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				B08F476A2EEFBEAD00C13E1B /* Sydoku */,
-				B0E5DCF12EF6E241008E8106 /* Docs */,
+				B0E5DCF12EF6E241008E8106 /* Claudes Musing */,
 			);
 			name = Sydoku;
 			packageProductDependencies = (

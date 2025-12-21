@@ -36,6 +36,8 @@ struct SudokuBoard: View {
                                 } else {
                                     game.highlightedNumber = nil
                                 }
+                                // Save UI state changes
+                                game.saveUIState()
                             }
                         )
                         .frame(width: cellSize, height: cellSize)

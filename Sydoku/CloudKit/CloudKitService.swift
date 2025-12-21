@@ -27,14 +27,14 @@ class CloudKitService {
     
     /// Record types
     private enum RecordType {
-        static let savedGame = "SavedGame"
+        static let game = "Game"
         static let statistics = "Statistics"
         static let settings = "Settings"
     }
     
-    /// Record IDs (using fixed IDs so we update the same record)
+    /// Record IDs for singleton records
     private enum RecordID {
-        static let savedGame = "current-saved-game"
+        static let inProgressGame = "current-in-progress-game"
         static let statistics = "user-statistics"
         static let settings = "user-settings"
     }
@@ -59,97 +59,115 @@ class CloudKitService {
         }
     }
     
-    // MARK: - Saved Game
+    // MARK: - Game Management
     
-    /// Uploads the current saved game to CloudKit.
-    func uploadSavedGame(
-        boardData: [Int],
-        notesData: Data,
-        solutionData: [Int],
-        initialBoardData: [Int],
-        difficulty: String,
-        elapsedTime: TimeInterval,
-        startDate: Date,
-        mistakes: Int,
-        isDailyChallenge: Bool,
-        dailyChallengeDate: String?,
-        lastSaved: Date
-    ) async throws {
-        logSync("Uploading saved game to CloudKit...")
+    /// Uploads a game (in-progress or completed) to CloudKit.
+    func uploadGame(_ game: Game, timestamp: Date) async throws {
+        let recordName = game.isCompleted ? game.gameID : RecordID.inProgressGame
+        let logType = game.isCompleted ? "completed game" : "in-progress game"
         
-        let recordID = CKRecord.ID(recordName: RecordID.savedGame)
+        logSync("Uploading \(logType) to CloudKit...")
+        
+        let recordID = CKRecord.ID(recordName: recordName)
         
         // Try to fetch existing record first, create new if it doesn't exist
         let record: CKRecord
         do {
             record = try await database.record(for: recordID)
-            logSync("Updating existing saved game record")
+            logSync("Updating existing \(logType) record")
         } catch let error as CKError where error.code == .unknownItem {
             // Record doesn't exist yet, create new one
-            record = CKRecord(recordType: RecordType.savedGame, recordID: recordID)
-            logSync("Creating new saved game record")
+            record = CKRecord(recordType: RecordType.game, recordID: recordID)
+            logSync("Creating new \(logType) record")
         } catch {
-            logError("Failed to fetch saved game record: \(error.localizedDescription)")
+            logError("Failed to fetch \(logType) record: \(error.localizedDescription)")
             throw error
         }
         
         // Update record fields - use the provided timestamp to stay in sync with local
-        record["boardData"] = boardData as CKRecordValue
-        record["notesData"] = notesData as CKRecordValue
-        record["solutionData"] = solutionData as CKRecordValue
-        record["initialBoardData"] = initialBoardData as CKRecordValue
-        record["difficulty"] = difficulty as CKRecordValue
-        record["elapsedTime"] = elapsedTime as CKRecordValue
-        record["startDate"] = startDate as CKRecordValue
-        record["mistakes"] = mistakes as CKRecordValue
-        let isDailyChallengeValue = isDailyChallenge ? 1 : 0
-        record["isDailyChallenge"] = isDailyChallengeValue as CKRecordValue
-        record["dailyChallengeDate"] = (dailyChallengeDate ?? "") as CKRecordValue
-        record["lastSaved"] = lastSaved as CKRecordValue
+        record["initialBoardData"] = game.initialBoardData as CKRecordValue
+        record["solutionData"] = game.solutionData as CKRecordValue
+        record["boardData"] = game.boardData as CKRecordValue
+        record["notesData"] = game.notesData as CKRecordValue
+        record["difficulty"] = game.difficulty as CKRecordValue
+        record["elapsedTime"] = game.elapsedTime as CKRecordValue
+        record["startDate"] = game.startDate as CKRecordValue
+        record["mistakes"] = game.mistakes as CKRecordValue
+        record["hintsData"] = game.hintsData as CKRecordValue
+        record["isDailyChallenge"] = (game.isDailyChallenge ? 1 : 0) as CKRecordValue
+        record["dailyChallengeDate"] = (game.dailyChallengeDate ?? "") as CKRecordValue
+        record["isCompleted"] = (game.isCompleted ? 1 : 0) as CKRecordValue
+        record["completionDate"] = (game.completionDate as Date?) as CKRecordValue?
+        record["lastSaved"] = timestamp as CKRecordValue
+        record["gameID"] = game.gameID as CKRecordValue
+        
+        // UI state for in-progress games
+        if !game.isCompleted {
+            record["selectedCellRow"] = (game.selectedCellRow ?? -1) as CKRecordValue  // Use -1 for nil
+            record["selectedCellCol"] = (game.selectedCellCol ?? -1) as CKRecordValue
+            record["highlightedNumber"] = (game.highlightedNumber ?? 0) as CKRecordValue  // Use 0 for nil
+            record["isPencilMode"] = (game.isPencilMode ? 1 : 0) as CKRecordValue
+            record["wasPaused"] = (game.wasPaused ? 1 : 0) as CKRecordValue
+        }
         
         do {
             _ = try await database.save(record)
-            logSync("✅ Saved game uploaded successfully (timestamp: \(lastSaved))")
+            logSync("✅ \(logType.capitalized) uploaded successfully (timestamp: \(timestamp))")
         } catch {
-            logError("Failed to upload saved game: \(error.localizedDescription)")
+            logError("Failed to upload \(logType): \(error.localizedDescription)")
             throw error
         }
     }
     
-    /// Downloads the current saved game from CloudKit.
-    func downloadSavedGame() async throws -> CloudKitSavedGame? {
-        logSync("Downloading saved game from CloudKit...")
+    /// Downloads the current in-progress game from CloudKit.
+    func downloadInProgressGame() async throws -> CloudKitGame? {
+        logSync("Downloading in-progress game from CloudKit...")
         
-        let recordID = CKRecord.ID(recordName: RecordID.savedGame)
+        let recordID = CKRecord.ID(recordName: RecordID.inProgressGame)
         
         do {
             let record = try await database.record(for: recordID)
             
-            guard let boardData = record["boardData"] as? [Int],
-                  let notesData = record["notesData"] as? Data,
+            guard let initialBoardData = record["initialBoardData"] as? [Int],
                   let solutionData = record["solutionData"] as? [Int],
-                  let initialBoardData = record["initialBoardData"] as? [Int],
+                  let boardData = record["boardData"] as? [Int],
+                  let notesData = record["notesData"] as? Data,
                   let difficulty = record["difficulty"] as? String,
                   let elapsedTime = record["elapsedTime"] as? Double,
                   let startDate = record["startDate"] as? Date,
                   let mistakes = record["mistakes"] as? Int,
                   let hintsData = record["hintsData"] as? [Int],
                   let isDailyChallengeInt = record["isDailyChallenge"] as? Int,
-                  let lastSaved = record["lastSaved"] as? Date else {
-                logError("Failed to parse saved game record")
+                  let isCompletedInt = record["isCompleted"] as? Int,
+                  let lastSaved = record["lastSaved"] as? Date,
+                  let gameID = record["gameID"] as? String else {
+                logError("Failed to parse in-progress game record")
+                return nil
+            }
+            
+            // Make sure this is actually an in-progress game
+            guard isCompletedInt == 0 else {
+                logError("Retrieved record is not an in-progress game")
                 return nil
             }
             
             let dailyChallengeDate = record["dailyChallengeDate"] as? String
             let isDailyChallenge = isDailyChallengeInt == 1
             
-            logSync("✅ Saved game downloaded (saved: \(lastSaved))")
+            // UI state fields (use defaults if not present for backwards compatibility)
+            let selectedCellRow = record["selectedCellRow"] as? Int
+            let selectedCellCol = record["selectedCellCol"] as? Int
+            let highlightedNumber = record["highlightedNumber"] as? Int
+            let isPencilModeInt = record["isPencilMode"] as? Int ?? 0
+            let wasPausedInt = record["wasPaused"] as? Int ?? 0
             
-            return CloudKitSavedGame(
+            logSync("✅ In-progress game downloaded (saved: \(lastSaved))")
+            
+            return CloudKitGame(
+                initialBoardData: initialBoardData,
+                solutionData: solutionData,
                 boardData: boardData,
                 notesData: notesData,
-                solutionData: solutionData,
-                initialBoardData: initialBoardData,
                 difficulty: difficulty,
                 elapsedTime: elapsedTime,
                 startDate: startDate,
@@ -157,32 +175,58 @@ class CloudKitService {
                 hintsData: hintsData,
                 isDailyChallenge: isDailyChallenge,
                 dailyChallengeDate: (dailyChallengeDate?.isEmpty == false) ? dailyChallengeDate : nil,
-                lastSaved: lastSaved
+                isCompleted: false,
+                completionDate: nil,
+                lastSaved: lastSaved,
+                gameID: gameID,
+                selectedCellRow: (selectedCellRow == -1) ? nil : selectedCellRow,
+                selectedCellCol: (selectedCellCol == -1) ? nil : selectedCellCol,
+                highlightedNumber: (highlightedNumber == 0) ? nil : highlightedNumber,
+                isPencilMode: isPencilModeInt == 1,
+                wasPaused: wasPausedInt == 1
             )
         } catch let error as CKError where error.code == .unknownItem {
-            // No saved game exists yet
-            logSync("No saved game found in CloudKit")
+            // No in-progress game exists yet
+            logSync("No in-progress game found in CloudKit")
             return nil
         } catch {
-            logError("Failed to download saved game: \(error.localizedDescription)")
+            logError("Failed to download in-progress game: \(error.localizedDescription)")
             throw error
         }
     }
     
-    /// Deletes the saved game from CloudKit.
-    func deleteSavedGame() async throws {
-        logSync("Deleting saved game from CloudKit...")
+    /// Deletes the in-progress game from CloudKit.
+    func deleteInProgressGame() async throws {
+        logSync("Deleting in-progress game from CloudKit...")
         
-        let recordID = CKRecord.ID(recordName: RecordID.savedGame)
+        let recordID = CKRecord.ID(recordName: RecordID.inProgressGame)
         
         do {
             _ = try await database.deleteRecord(withID: recordID)
-            logSync("✅ Saved game deleted from CloudKit")
+            logSync("✅ In-progress game deleted from CloudKit")
         } catch let error as CKError where error.code == .unknownItem {
             // Already deleted, that's fine
-            logSync("Saved game already deleted")
+            logSync("In-progress game already deleted")
         } catch {
-            logError("Failed to delete saved game: \(error.localizedDescription)")
+            logError("Failed to delete in-progress game: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    /// Deletes a completed game from CloudKit by its gameID.
+    func deleteGame(gameID: String) async throws {
+        logSync("Deleting game \(gameID) from CloudKit...")
+        
+        let recordID = CKRecord.ID(recordName: gameID)
+        
+        do {
+            _ = try await database.deleteRecord(withID: recordID)
+            logSync("✅ Game \(gameID) deleted from CloudKit")
+        } catch let error as CKError where error.code == .unknownItem {
+            // Already deleted, that's fine
+            logSync("Game \(gameID) already deleted")
+        } catch {
+            logError("Failed to delete game \(gameID): \(error.localizedDescription)")
             throw error
         }
     }
@@ -396,12 +440,12 @@ class CloudKitService {
 
 // MARK: - Data Models
 
-/// CloudKit representation of a saved game.
-struct CloudKitSavedGame {
+/// CloudKit representation of a game (in-progress or completed).
+struct CloudKitGame {
+    let initialBoardData: [Int]
+    let solutionData: [Int]
     let boardData: [Int]
     let notesData: Data
-    let solutionData: [Int]
-    let initialBoardData: [Int]
     let difficulty: String
     let elapsedTime: TimeInterval
     let startDate: Date
@@ -409,5 +453,15 @@ struct CloudKitSavedGame {
     let hintsData: [Int]
     let isDailyChallenge: Bool
     let dailyChallengeDate: String?
+    let isCompleted: Bool
+    let completionDate: Date?
     let lastSaved: Date
+    let gameID: String
+    
+    // UI state for seamless resume (in-progress games only)
+    let selectedCellRow: Int?
+    let selectedCellCol: Int?
+    let highlightedNumber: Int?
+    let isPencilMode: Bool
+    let wasPaused: Bool
 }

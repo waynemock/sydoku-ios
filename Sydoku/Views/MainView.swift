@@ -16,6 +16,9 @@ struct MainView: View {
     /// Whether the difficulty picker dialog is showing.
     @State private var showingNewGamePicker = false
     
+    /// Whether the game history sheet is showing.
+    @State private var showingHistory = false
+    
     /// Whether the statistics sheet is showing.
     @State private var showingStats = false
     
@@ -173,6 +176,7 @@ struct MainView: View {
                     game: game,
                     theme: theme,
                     showingNewGamePicker: $showingNewGamePicker,
+                    showingHistory: $showingHistory,
                     showingStats: $showingStats,
                     showingSettings: $showingSettings,
                     showingAbout: $showingAbout,
@@ -260,6 +264,10 @@ struct MainView: View {
             .shadow(radius: 8)
         }
         .environment(\.theme, theme)
+        .sheet(isPresented: $showingHistory) {
+            GameHistoryView()
+                .environment(\.theme, theme)
+        }
         .sheet(isPresented: $showingStats) {
             StatisticsView(game: game)
                 .environment(\.theme, theme)

@@ -15,6 +15,9 @@ struct HeaderView: View {
     /// Binding to show/hide the new game picker.
     @Binding var showingNewGamePicker: Bool
     
+    /// Binding to show/hide game history
+    @Binding var showHistory: Bool
+    
     /// Binding to show/hide the statistics sheet.
     @Binding var showingStats: Bool
     
@@ -41,6 +44,7 @@ struct HeaderView: View {
         game: SudokuGame,
         theme: Theme,
         showingNewGamePicker: Binding<Bool>,
+        showingHistory: Binding<Bool>,
         showingStats: Binding<Bool>,
         showingSettings: Binding<Bool>,
         showingAbout: Binding<Bool>,
@@ -50,6 +54,7 @@ struct HeaderView: View {
         self.game = game
         self.theme = theme
         self._showingNewGamePicker = showingNewGamePicker
+        self._showHistory = showingHistory
         self._showingStats = showingStats
         self._showingSettings = showingSettings
         self._showingAbout = showingAbout
@@ -100,6 +105,7 @@ struct HeaderView: View {
                     MenuButtonView(
                         game: game,
                         theme: theme,
+                        showingHistory: $showHistory,
                         showingStats: $showingStats,
                         showingSettings: $showingSettings,
                         showingAbout: $showingAbout,

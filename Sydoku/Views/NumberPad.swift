@@ -25,6 +25,7 @@ struct NumberPad: View {
                         action: {
                             game.setNumber(num)
                             game.highlightedNumber = num
+                            game.saveUIState()
                         }
                     )
                 }
@@ -41,6 +42,7 @@ struct NumberPad: View {
                         action: {
                             game.setNumber(num)
                             game.highlightedNumber = num
+                            game.saveUIState()
                         }
                     )
                 }
@@ -49,6 +51,7 @@ struct NumberPad: View {
                 Button(action: {
                     game.clearCell()
                     game.highlightedNumber = nil
+                    game.saveUIState()
                 }) {
                     Image(systemName: "delete.backward.fill")
                         .font(.title2.weight(.semibold))

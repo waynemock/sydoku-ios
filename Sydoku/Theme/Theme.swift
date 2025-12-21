@@ -195,7 +195,6 @@ extension Theme {
     /// - Easy: Success color (green)
     /// - Medium: Warning color (orange)
     /// - Hard: Error color (red)
-    /// - Expert: Danger color (dark grey)
     func color(for difficulty: Difficulty) -> Color {
         switch difficulty {
         case .easy: return successColor

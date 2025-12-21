@@ -26,7 +26,7 @@ struct SydokuApp: App {
         let schema = Schema([
             Item.self,
             GameStatistics.self,
-            SavedGameState.self,
+            Game.self,  // ✅ NEW: Unified model for both in-progress and completed games
             UserSettings.self,
         ])
         

@@ -46,6 +46,7 @@ struct InputControls: View {
                     // Pen button (regular mode)
                     Button(action: { 
                         game.isPencilMode = false
+                        game.saveUIState()
                     }) {
                         Text("Pen")
                             .font(.appBody)
@@ -59,6 +60,7 @@ struct InputControls: View {
                     // Notes button (pencil mode)
                     Button(action: { 
                         game.isPencilMode = true
+                        game.saveUIState()
                     }) {
                         Text("Notes")
                             .font(.appBody)

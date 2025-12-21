@@ -4,6 +4,8 @@ import SwiftUI
 struct MenuButtonView: View {
     @ObservedObject var game: SudokuGame
     let theme: Theme
+    
+    @Binding var showingHistory: Bool
     @Binding var showingStats: Bool
     @Binding var showingSettings: Bool
     @Binding var showingAbout: Bool
@@ -46,10 +48,14 @@ struct MenuButtonView: View {
             
             Divider()
             
+            Button(action: { showingHistory = true }) {
+                Label("Game History", systemImage: "chart.bar.fill")
+            }
+            
             Button(action: { showingStats = true }) {
                 Label("Statistics", systemImage: "chart.bar.fill")
             }
-            
+
             Button(action: { showingSettings = true }) {
                 Label("Settings", systemImage: "gearshape.fill")
             }
