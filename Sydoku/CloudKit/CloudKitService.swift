@@ -63,10 +63,11 @@ class CloudKitService {
     
     /// Uploads a game (in-progress or completed) to CloudKit.
     func uploadGame(_ game: Game, timestamp: Date) async throws {
-        let recordName = game.isCompleted ? game.gameID : RecordID.inProgressGame
+        // Always use the gameID as the record name (no special handling for in-progress vs completed)
+        let recordName = game.gameID
         let logType = game.isCompleted ? "completed game" : "in-progress game"
         
-        logSync("Uploading \(logType) to CloudKit...")
+        logSync("Uploading \(logType) to CloudKit (gameID: \(recordName))...")
         
         let recordID = CKRecord.ID(recordName: recordName)
         
@@ -101,18 +102,16 @@ class CloudKitService {
         record["lastSaved"] = timestamp as CKRecordValue
         record["gameID"] = game.gameID as CKRecordValue
         
-        // UI state for in-progress games
-        if !game.isCompleted {
-            record["selectedCellRow"] = (game.selectedCellRow ?? -1) as CKRecordValue  // Use -1 for nil
-            record["selectedCellCol"] = (game.selectedCellCol ?? -1) as CKRecordValue
-            record["highlightedNumber"] = (game.highlightedNumber ?? 0) as CKRecordValue  // Use 0 for nil
-            record["isPencilMode"] = (game.isPencilMode ? 1 : 0) as CKRecordValue
-            record["wasPaused"] = (game.wasPaused ? 1 : 0) as CKRecordValue
-        }
+        // UI state (stored for both, but only meaningful for in-progress games)
+        record["selectedCellRow"] = (game.selectedCellRow ?? -1) as CKRecordValue  // Use -1 for nil
+        record["selectedCellCol"] = (game.selectedCellCol ?? -1) as CKRecordValue
+        record["highlightedNumber"] = (game.highlightedNumber ?? 0) as CKRecordValue  // Use 0 for nil
+        record["isPencilMode"] = (game.isPencilMode ? 1 : 0) as CKRecordValue
+        record["wasPaused"] = (game.wasPaused ? 1 : 0) as CKRecordValue
         
         do {
             _ = try await database.save(record)
-            logSync("✅ \(logType.capitalized) uploaded successfully (timestamp: \(timestamp))")
+            logSync("✅ \(logType.capitalized) uploaded successfully (gameID: \(recordName), timestamp: \(timestamp))")
         } catch {
             logError("Failed to upload \(logType): \(error.localizedDescription)")
             throw error
@@ -211,6 +210,195 @@ class CloudKitService {
             logError("Failed to delete in-progress game: \(error.localizedDescription)")
             throw error
         }
+    }
+    
+    /// Downloads all in-progress games from CloudKit (not completed).
+    func downloadInProgressGames() async throws -> [CloudKitGame] {
+        logSync("Downloading in-progress games from CloudKit...")
+        
+        // Query for games where isCompleted == 0
+        let predicate = NSPredicate(format: "isCompleted == 0")
+        let query = CKQuery(recordType: RecordType.game, predicate: predicate)
+        query.sortDescriptors = [NSSortDescriptor(key: "lastSaved", ascending: false)]
+        
+        do {
+            let (matchResults, _) = try await database.records(matching: query)
+            
+            var games: [CloudKitGame] = []
+            
+            for (_, result) in matchResults {
+                switch result {
+                case .success(let record):
+                    if let game = parseGameRecord(record, isCompleted: false) {
+                        games.append(game)
+                    }
+                case .failure(let error):
+                    logError("Failed to fetch game record: \(error.localizedDescription)")
+                }
+            }
+            
+            logSync("✅ Downloaded \(games.count) in-progress games from CloudKit")
+            return games
+        } catch {
+            logError("Failed to download in-progress games: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    /// Downloads a specific game by its ID from CloudKit.
+    func downloadGameByID(_ gameID: String) async throws -> CloudKitGame? {
+        logSync("Downloading game by ID: \(gameID)...")
+        
+        let recordID = CKRecord.ID(recordName: gameID)
+        
+        do {
+            let record = try await database.record(for: recordID)
+            let isCompletedInt = record["isCompleted"] as? Int ?? 0
+            
+            if let game = parseGameRecord(record, isCompleted: isCompletedInt == 1) {
+                logSync("✅ Downloaded game (gameID: \(gameID), isCompleted: \(game.isCompleted))")
+                return game
+            } else {
+                logError("Failed to parse game record for ID: \(gameID)")
+                return nil
+            }
+        } catch let error as CKError where error.code == .unknownItem {
+            logSync("Game not found in CloudKit (gameID: \(gameID))")
+            return nil
+        } catch {
+            logError("Failed to download game: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    /// Downloads all games (both in-progress and completed) from CloudKit.
+    func downloadAllGames() async throws -> [CloudKitGame] {
+        logSync("Downloading all games from CloudKit...")
+        
+        // Query for all game records
+        let predicate = NSPredicate(value: true) // Get all games
+        let query = CKQuery(recordType: RecordType.game, predicate: predicate)
+        query.sortDescriptors = [NSSortDescriptor(key: "lastSaved", ascending: false)]
+        
+        do {
+            let (matchResults, _) = try await database.records(matching: query)
+            
+            var games: [CloudKitGame] = []
+            
+            for (_, result) in matchResults {
+                switch result {
+                case .success(let record):
+                    let isCompletedInt = record["isCompleted"] as? Int ?? 0
+                    if let game = parseGameRecord(record, isCompleted: isCompletedInt == 1) {
+                        games.append(game)
+                    }
+                case .failure(let error):
+                    logError("Failed to fetch game record: \(error.localizedDescription)")
+                }
+            }
+            
+            logSync("✅ Downloaded \(games.count) games from CloudKit (\(games.filter { !$0.isCompleted }.count) in-progress, \(games.filter { $0.isCompleted }.count) completed)")
+            return games
+        } catch {
+            logError("Failed to download games: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    /// Downloads all completed games from CloudKit.
+    func downloadCompletedGames() async throws -> [CloudKitGame] {
+        logSync("Downloading completed games from CloudKit...")
+        
+        // Query for all completed games
+        let predicate = NSPredicate(format: "isCompleted == 1")
+        let query = CKQuery(recordType: RecordType.game, predicate: predicate)
+        // Use lastSaved instead of completionDate for sorting to avoid schema issues
+        // (completionDate might not exist in CloudKit schema yet)
+        query.sortDescriptors = [NSSortDescriptor(key: "lastSaved", ascending: false)]
+        
+        do {
+            let (matchResults, _) = try await database.records(matching: query)
+            
+            var games: [CloudKitGame] = []
+            
+            for (_, result) in matchResults {
+                switch result {
+                case .success(let record):
+                    if let game = parseGameRecord(record, isCompleted: true) {
+                        games.append(game)
+                    }
+                case .failure(let error):
+                    logError("Failed to fetch game record: \(error.localizedDescription)")
+                }
+            }
+            
+            logSync("✅ Downloaded \(games.count) completed games from CloudKit")
+            return games
+        } catch {
+            logError("Failed to download completed games: \(error.localizedDescription)")
+            throw error
+        }
+    }
+    
+    /// Helper to parse a game record from CloudKit.
+    private func parseGameRecord(_ record: CKRecord, isCompleted: Bool) -> CloudKitGame? {
+        guard let initialBoardData = record["initialBoardData"] as? [Int],
+              let solutionData = record["solutionData"] as? [Int],
+              let boardData = record["boardData"] as? [Int],
+              let notesData = record["notesData"] as? Data,
+              let difficulty = record["difficulty"] as? String,
+              let elapsedTime = record["elapsedTime"] as? Double,
+              let startDate = record["startDate"] as? Date,
+              let mistakes = record["mistakes"] as? Int,
+              let hintsData = record["hintsData"] as? [Int],
+              let isDailyChallengeInt = record["isDailyChallenge"] as? Int,
+              let lastSaved = record["lastSaved"] as? Date,
+              let gameID = record["gameID"] as? String else {
+            logError("Failed to parse game record")
+            return nil
+        }
+        
+        let dailyChallengeDate = record["dailyChallengeDate"] as? String
+        let isDailyChallenge = isDailyChallengeInt == 1
+        let completionDate = record["completionDate"] as? Date
+        
+        // UI state fields (only for in-progress games)
+        var selectedCellRow: Int? = nil
+        var selectedCellCol: Int? = nil
+        var highlightedNumber: Int? = nil
+        var isPencilMode = false
+        var wasPaused = false
+        
+        if !isCompleted {
+            selectedCellRow = record["selectedCellRow"] as? Int
+            selectedCellCol = record["selectedCellCol"] as? Int
+            highlightedNumber = record["highlightedNumber"] as? Int
+            isPencilMode = (record["isPencilMode"] as? Int ?? 0) == 1
+            wasPaused = (record["wasPaused"] as? Int ?? 0) == 1
+        }
+        
+        return CloudKitGame(
+            initialBoardData: initialBoardData,
+            solutionData: solutionData,
+            boardData: boardData,
+            notesData: notesData,
+            difficulty: difficulty,
+            elapsedTime: elapsedTime,
+            startDate: startDate,
+            mistakes: mistakes,
+            hintsData: hintsData,
+            isDailyChallenge: isDailyChallenge,
+            dailyChallengeDate: (dailyChallengeDate?.isEmpty == false) ? dailyChallengeDate : nil,
+            isCompleted: isCompleted,
+            completionDate: completionDate,
+            lastSaved: lastSaved,
+            gameID: gameID,
+            selectedCellRow: (selectedCellRow == -1) ? nil : selectedCellRow,
+            selectedCellCol: (selectedCellCol == -1) ? nil : selectedCellCol,
+            highlightedNumber: (highlightedNumber == 0) ? nil : highlightedNumber,
+            isPencilMode: isPencilMode,
+            wasPaused: wasPaused
+        )
     }
     
     /// Deletes a completed game from CloudKit by its gameID.

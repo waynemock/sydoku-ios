@@ -52,6 +52,26 @@ class CloudKitStatus: ObservableObject {
 			return "Unknown iCloud status"
 		}
 	}
+	
+	/// Returns a debug-friendly string with both code and description.
+	private func accountStatusString(_ status: CKAccountStatus) -> String {
+		let description: String
+		switch status {
+		case .available:
+			description = "available"
+		case .noAccount:
+			description = "noAccount"
+		case .restricted:
+			description = "restricted"
+		case .couldNotDetermine:
+			description = "couldNotDetermine"
+		case .temporarilyUnavailable:
+			description = "temporarilyUnavailable"
+		@unknown default:
+			description = "unknown"
+		}
+		return "\(description) (code: \(status.rawValue))"
+	}
 
 	init() {
 		NotificationCenter.default.addObserver(self, selector: #selector(accountDidChange(_:)), name: Notification.Name.CKAccountChanged, object: nil)
@@ -96,7 +116,7 @@ class CloudKitStatus: ObservableObject {
 				let status = try await container.accountStatus()
 				
 				if self.accountStatus != status {
-					logger.info(self, "accountStatus=\(status.rawValue)")
+					logger.info(self, "accountStatus=\(self.accountStatusString(status))")
 					self.accountStatus = status
 					self.completionHandler?(status)
 				}

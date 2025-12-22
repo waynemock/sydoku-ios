@@ -120,6 +120,9 @@ class SudokuGame: ObservableObject {
     /// The date and time when the current game started.
     private var gameStartDate = Date()
     
+    /// The unique identifier for the current game (for tracking across saves).
+    private var currentGameID: String?
+    
     /// Persistence service for SwiftData operations.
     private var persistenceService: PersistenceService?
     
@@ -199,8 +202,19 @@ class SudokuGame: ObservableObject {
         settingsModel = persistenceService.fetchOrCreateSettings()
         settings = SettingsAdapter.toStruct(from: settingsModel!)
         
-        // Check for saved game
-        checkForSavedGame()
+        // IMPORTANT: Sync from CloudKit first, then check for saved game
+        // This ensures we don't load stale data that's been completed on another device
+        Task {
+            await syncAllFromCloudKit()
+            
+            // After sync completes, if no game was found in CloudKit, check local
+            // (This handles the offline case where we might have local data)
+            if !hasSavedGame {
+                await MainActor.run {
+                    checkForSavedGame()
+                }
+            }
+        }
     }
     
     /// Reloads data from persistence (useful when app returns to foreground).
@@ -241,7 +255,34 @@ class SudokuGame: ObservableObject {
                 dailyChallengeDate = freshSavedGame.dailyChallengeDate
                 hasSavedGame = true
                 
+                // Store the game ID for future saves
+                currentGameID = freshSavedGame.gameID
+                
+                // Restore UI state for seamless resume
+                if let row = freshSavedGame.selectedCellRow, let col = freshSavedGame.selectedCellCol {
+                    selectedCell = (row, col)
+                } else {
+                    selectedCell = nil
+                }
+                highlightedNumber = freshSavedGame.highlightedNumber
+                isPencilMode = freshSavedGame.isPencilMode
+                isPaused = freshSavedGame.wasPaused
+                
+                // Manage timer based on pause state
+                if isPaused {
+                    stopTimer()
+                } else if !isComplete && !isGameOver {
+                    startTimer()
+                }
+                
                 logger.info(self, "Game reloaded from CloudKit")
+            }
+        } else {
+            // No game in CloudKit - could mean it was completed/deleted on another device
+            await MainActor.run {
+                hasSavedGame = false
+                currentGameID = nil
+                logger.info(self, "No in-progress game found in CloudKit")
             }
         }
         
@@ -262,6 +303,9 @@ class SudokuGame: ObservableObject {
                 logger.info(self, "Statistics reloaded from CloudKit")
             }
         }
+        
+        // Download completed games from CloudKit
+        await persistenceService.syncCompletedGamesFromCloudKit()
     }
     
     // MARK: - Settings
@@ -345,7 +389,27 @@ class SudokuGame: ObservableObject {
             return
         }
         
-        persistenceService?.saveInProgressGame(
+        // Don't save if the board is empty (not generated yet)
+        // This prevents saving invalid game states that confuse the user
+        let hasAnyValues = board.flatMap { $0 }.contains { $0 != 0 }
+        if !hasAnyValues {
+            logger.info(self, "Prevented saving empty/ungenerated board")
+            return
+        }
+        
+        // Check if we have a loaded game and verify it hasn't been completed elsewhere
+        // This prevents overwriting a completed game with stale in-progress data
+        if let existingGame = persistenceService?.fetchInProgressGame() {
+            // If the local game has somehow been marked as completed, don't save over it
+            if existingGame.isCompleted {
+                logger.info(self, "Prevented saving over completed game")
+                deleteSavedGame()
+                return
+            }
+        }
+        
+        currentGameID = persistenceService?.saveInProgressGame(
+            gameID: currentGameID,
             board: board,
             notes: notes,
             solution: solution,
@@ -402,6 +466,9 @@ class SudokuGame: ObservableObject {
             hints = Game.unflatten(savedGame.hintsData)
             isDailyChallenge = savedGame.isDailyChallenge
             dailyChallengeDate = savedGame.dailyChallengeDate
+            
+            // Store the game ID for future saves
+            currentGameID = savedGame.gameID
             
             // Restore UI state for seamless resume
             if let row = savedGame.selectedCellRow, let col = savedGame.selectedCellCol {
@@ -551,6 +618,9 @@ class SudokuGame: ObservableObject {
         self.mistakes = 0
         self.hints = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
         self.showConfetti = false
+        
+        // Clear game ID for new game (will be generated on first save)
+        self.currentGameID = nil
         
         self.stats.recordStart(difficulty: difficulty.rawValue)
         self.saveStats()
@@ -869,6 +939,9 @@ class SudokuGame: ObservableObject {
                 }
             }
         }
+        
+        // Save after auto-filling notes (with debounce)
+        debouncedSave()
     }
     
     /// Removes a number from notes in all cells related to the given position.
@@ -909,6 +982,9 @@ class SudokuGame: ObservableObject {
                 notes[r][c].removeAll()
             }
         }
+        
+        // Save after clearing notes (with debounce)
+        debouncedSave()
     }
     
     /// Checks if the puzzle has been completed successfully.
@@ -935,23 +1011,27 @@ class SudokuGame: ObservableObject {
         stopTimer()
         
         // Save the completed game to history with full hints grid
-        persistenceService?.saveCompletedGame(
-            initialBoard: initialBoard,
-            solution: solution,
-            finalBoard: board,
-            difficulty: currentDifficulty.rawValue,
-            completionTime: elapsedTime,
-            startDate: gameStartDate,
-            completionDate: Date(),
-            mistakes: mistakes,
-            hints: hints,
-            isDailyChallenge: isDailyChallenge,
-            dailyChallengeDate: dailyChallengeDate
-        )
+        if let gameID = currentGameID {
+            persistenceService?.saveCompletedGame(
+                gameID: gameID,
+                initialBoard: initialBoard,
+                solution: solution,
+                finalBoard: board,
+                difficulty: currentDifficulty.rawValue,
+                completionTime: elapsedTime,
+                startDate: gameStartDate,
+                completionDate: Date(),
+                mistakes: mistakes,
+                hints: hints,
+                isDailyChallenge: isDailyChallenge,
+                dailyChallengeDate: dailyChallengeDate
+            )
+        }
         
         stats.recordWin(difficulty: currentDifficulty.rawValue, time: elapsedTime)
         saveStats()
         deleteSavedGame()
+        currentGameID = nil // Clear the game ID after completion
         if settings.hapticFeedback {
             triggerSuccessHaptic.toggle()
         }
@@ -1009,6 +1089,9 @@ class SudokuGame: ObservableObject {
             notes[cell.row][cell.col] = candidates
             selectedCell = cell
             hints[cell.row][cell.col] = 1
+            
+            // Save after giving hint (with debounce)
+            debouncedSave()
         }
     }
     

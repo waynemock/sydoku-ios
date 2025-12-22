@@ -300,6 +300,16 @@ struct MainView: View {
             )
         }
         .newGamePicker(isPresented: $showingNewGamePicker, game: game, theme: theme)
+        .onChange(of: game.hasSavedGame) { _, hasSavedGame in
+            // If a saved game is detected (e.g., from iCloud sync), dismiss the new game picker
+            if hasSavedGame {
+                showingNewGamePicker = false
+                // Load the saved game if not already loaded
+                if !game.isDailyChallengeExpired && game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
+                    game.loadSavedGame()
+                }
+            }
+        }
         .onChange(of: showingStats) { _, isShowing in
             if !isShowing && !game.isComplete && !game.isGameOver {
                 game.startTimer()

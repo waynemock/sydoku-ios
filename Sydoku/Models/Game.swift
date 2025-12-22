@@ -15,9 +15,6 @@ import SwiftData
 /// Games are synced via CloudKit.
 @Model
 final class Game {
-    /// Fixed gameID for the single in-progress game slot.
-    /// In-progress games always use this ID, allowing efficient updates instead of delete+insert.
-    static let inProgressGameID = "DD507EF0-34A4-4757-9C97-B28E542E2247"
     
     /// The initial puzzle board (9x9 grid, stored as flat array).
     var initialBoardData: [Int] = []

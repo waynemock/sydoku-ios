@@ -205,9 +205,11 @@ class PersistenceService {
     
     /// Saves the current in-progress game state.
     ///
-    /// Replaces any existing in-progress game with the new state.
+    /// Uses upsert logic: updates existing game or creates new one.
+    /// The gameID should be provided to track the same game across multiple saves.
     ///
     /// - Parameters:
+    ///   - gameID: The unique identifier for this game (pass existing ID to update, or nil to create new).
     ///   - board: Current board state.
     ///   - notes: Current pencil notes.
     ///   - solution: The puzzle solution.
@@ -223,7 +225,10 @@ class PersistenceService {
     ///   - highlightedNumber: The currently highlighted number (1-9), or nil if none highlighted.
     ///   - isPencilMode: Whether pencil mode is currently active.
     ///   - isPaused: Whether the game is currently paused.
+    /// - Returns: The gameID of the saved game (useful for tracking new games).
+    @discardableResult
     func saveInProgressGame(
+        gameID: String? = nil,
         board: [[Int]],
         notes: [[Set<Int>]],
         solution: [[Int]],
@@ -239,11 +244,16 @@ class PersistenceService {
         highlightedNumber: Int?,
         isPencilMode: Bool,
         isPaused: Bool
-    ) {
-        // Delete any existing in-progress game
-        deleteInProgressGame()
+    ) -> String {
+        // Validate that the board is not empty before saving
+        // This prevents saving invalid game states
+        let hasAnyValues = board.flatMap { $0 }.contains { $0 != 0 }
+        if !hasAnyValues {
+            syncMonitor.logError("❌ Prevented saving empty board")
+            // Return existing gameID or generate new one, but don't save
+            return gameID ?? UUID().uuidString
+        }
         
-        // Create new in-progress game with synchronized timestamp
         let notesData = Game.encodeNotes(notes)
         let boardData = Game.flatten(board)
         let solutionData = Game.flatten(solution)
@@ -251,6 +261,46 @@ class PersistenceService {
         let hintsData = Game.flatten(hints)
         let timestamp = Date()
         
+        // If gameID provided, try to find and update existing game (upsert)
+        if let gameID = gameID {
+            let descriptor = FetchDescriptor<Game>(
+                predicate: #Predicate<Game> { game in
+                    game.gameID == gameID
+                }
+            )
+            
+            if let existingGame = try? modelContext.fetch(descriptor).first {
+                // Update existing game
+                existingGame.boardData = boardData
+                existingGame.notesData = notesData
+                existingGame.elapsedTime = elapsedTime
+                existingGame.mistakes = mistakes
+                existingGame.hintsData = hintsData
+                existingGame.lastSaved = timestamp
+                existingGame.selectedCellRow = selectedCell?.row
+                existingGame.selectedCellCol = selectedCell?.col
+                existingGame.highlightedNumber = highlightedNumber
+                existingGame.isPencilMode = isPencilMode
+                existingGame.wasPaused = isPaused
+                
+                syncMonitor.logSave("In-progress game updated (gameID: \(gameID), time: \(Int(elapsedTime))s)")
+                forceSave()
+                
+                // Upload to CloudKit
+                Task {
+                    do {
+                        try await cloudKitService.uploadGame(existingGame, timestamp: timestamp)
+                    } catch {
+                        syncMonitor.logError("CloudKit upload failed (saved locally): \(error.localizedDescription)")
+                    }
+                }
+                
+                return gameID
+            }
+        }
+        
+        // Create new game (either no gameID provided, or gameID not found)
+        let newGameID = gameID ?? UUID().uuidString
         let game = Game(
             initialBoardData: initialBoardData,
             solutionData: solutionData,
@@ -266,7 +316,7 @@ class PersistenceService {
             isCompleted: false,
             completionDate: nil,
             lastSaved: timestamp,
-            gameID: Game.inProgressGameID,
+            gameID: newGameID,
             selectedCellRow: selectedCell?.row,
             selectedCellCol: selectedCell?.col,
             highlightedNumber: highlightedNumber,
@@ -275,18 +325,19 @@ class PersistenceService {
         )
         
         modelContext.insert(game)
-        syncMonitor.logSave("In-progress game saved (difficulty: \(difficulty), time: \(Int(elapsedTime))s, timestamp: \(timestamp))")
+        syncMonitor.logSave("In-progress game created (gameID: \(newGameID), difficulty: \(difficulty), time: \(Int(elapsedTime))s)")
         forceSave()
         
-        // Upload to CloudKit immediately with the SAME timestamp
+        // Upload to CloudKit
         Task {
             do {
                 try await cloudKitService.uploadGame(game, timestamp: timestamp)
             } catch {
-                // Log error but don't fail the save
                 syncMonitor.logError("CloudKit upload failed (saved locally): \(error.localizedDescription)")
             }
         }
+        
+        return newGameID
     }
     
     /// Deletes the saved game.
@@ -325,92 +376,243 @@ class PersistenceService {
     /// Downloads the latest in-progress game from CloudKit and updates local storage.
     ///
     /// This should be called when the app comes to foreground to get the latest
-    /// data from other devices.
+    /// data from other devices. It queries CloudKit for all in-progress games and
+    /// picks the most recently saved one.
+    ///
+    /// - Returns: The synced game if one exists in CloudKit, or nil if no game exists.
     func syncInProgressGameFromCloudKit() async -> Game? {
         do {
-            guard let cloudKitGame = try await cloudKitService.downloadInProgressGame() else {
-                syncMonitor.logSync("No in-progress game in CloudKit")
+            // Download all in-progress games from CloudKit (sorted by lastSaved desc)
+            let inProgressGames = try await cloudKitService.downloadInProgressGames()
+            
+            // Get the most recent in-progress game
+            guard let cloudKitGame = inProgressGames.first else {
+                syncMonitor.logSync("No in-progress games in CloudKit")
+                
+                // Check if local game was completed on another device
+                if let localGame = fetchInProgressGame() {
+                    // Try to fetch the local game by ID to see if it was completed
+                    if let completedVersion = try? await cloudKitService.downloadGameByID(localGame.gameID),
+                       completedVersion.isCompleted {
+                        syncMonitor.logSync("⚠️ Local in-progress game was completed on another device (gameID: \(localGame.gameID))")
+                        
+                        // Update local game to completed
+                        localGame.boardData = completedVersion.boardData
+                        localGame.elapsedTime = completedVersion.elapsedTime
+                        localGame.mistakes = completedVersion.mistakes
+                        localGame.hintsData = completedVersion.hintsData
+                        localGame.isCompleted = true
+                        localGame.completionDate = completedVersion.completionDate
+                        localGame.lastSaved = completedVersion.lastSaved
+                        localGame.notesData = Data()
+                        localGame.selectedCellRow = nil
+                        localGame.selectedCellCol = nil
+                        localGame.highlightedNumber = nil
+                        localGame.isPencilMode = false
+                        localGame.wasPaused = false
+                        
+                        try? modelContext.save()
+                        syncMonitor.logSync("✅ Local game marked as completed from CloudKit")
+                        
+                        // Return nil so the app shows new game dialog
+                        return nil
+                    } else {
+                        syncMonitor.logSync("⚠️ Local in-progress game not found in CloudKit")
+                        
+                        // Check if the local game is valid (has any non-zero values)
+                        let board = Game.unflatten(localGame.boardData)
+                        let hasAnyValues = board.flatMap { $0 }.contains { $0 != 0 }
+                        
+                        if !hasAnyValues {
+                            syncMonitor.logSync("⚠️ Local game is empty - deleting orphaned game")
+                            modelContext.delete(localGame)
+                            try? modelContext.save()
+                            return nil
+                        }
+                        
+                        syncMonitor.logSync("Local game has data - keeping local copy (offline mode)")
+                    }
+                }
+                
                 return nil
             }
             
-            // Check if we need to update local storage
+            // Get local game
             let localGame = fetchInProgressGame()
             
-            // If CloudKit is newer, update local
-            if localGame == nil || cloudKitGame.lastSaved > localGame!.lastSaved {
-                syncMonitor.logSync("CloudKit has newer data, updating local...")
+            // If no local game, create from CloudKit
+            if localGame == nil {
+                syncMonitor.logSync("Creating local game from CloudKit (gameID: \(cloudKitGame.gameID))")
                 
-                if let existingGame = localGame {
-                    // Update existing game
-                    existingGame.initialBoardData = cloudKitGame.initialBoardData
-                    existingGame.solutionData = cloudKitGame.solutionData
-                    existingGame.boardData = cloudKitGame.boardData
-                    existingGame.notesData = cloudKitGame.notesData
-                    existingGame.difficulty = cloudKitGame.difficulty
-                    existingGame.elapsedTime = cloudKitGame.elapsedTime
-                    existingGame.startDate = cloudKitGame.startDate
-                    existingGame.mistakes = cloudKitGame.mistakes
-                    existingGame.hintsData = cloudKitGame.hintsData
-                    existingGame.isDailyChallenge = cloudKitGame.isDailyChallenge
-                    existingGame.dailyChallengeDate = cloudKitGame.dailyChallengeDate
-                    existingGame.lastSaved = cloudKitGame.lastSaved
-                    // UI state
-                    existingGame.selectedCellRow = cloudKitGame.selectedCellRow
-                    existingGame.selectedCellCol = cloudKitGame.selectedCellCol
-                    existingGame.highlightedNumber = cloudKitGame.highlightedNumber
-                    existingGame.isPencilMode = cloudKitGame.isPencilMode
-                    existingGame.wasPaused = cloudKitGame.wasPaused
+                let game = Game(
+                    initialBoardData: cloudKitGame.initialBoardData,
+                    solutionData: cloudKitGame.solutionData,
+                    boardData: cloudKitGame.boardData,
+                    notesData: cloudKitGame.notesData,
+                    difficulty: cloudKitGame.difficulty,
+                    elapsedTime: cloudKitGame.elapsedTime,
+                    startDate: cloudKitGame.startDate,
+                    mistakes: cloudKitGame.mistakes,
+                    hintsData: cloudKitGame.hintsData,
+                    isDailyChallenge: cloudKitGame.isDailyChallenge,
+                    dailyChallengeDate: cloudKitGame.dailyChallengeDate,
+                    isCompleted: false,
+                    completionDate: nil,
+                    lastSaved: cloudKitGame.lastSaved,
+                    gameID: cloudKitGame.gameID,
+                    selectedCellRow: cloudKitGame.selectedCellRow,
+                    selectedCellCol: cloudKitGame.selectedCellCol,
+                    highlightedNumber: cloudKitGame.highlightedNumber,
+                    isPencilMode: cloudKitGame.isPencilMode,
+                    wasPaused: cloudKitGame.wasPaused
+                )
+                
+                modelContext.insert(game)
+                try? modelContext.save()
+                syncMonitor.logSync("✅ Local game created from CloudKit")
+                
+                return game
+            }
+            
+            // Same game - check if CloudKit is newer
+            if let unwrappedLocalGame = localGame, unwrappedLocalGame.gameID == cloudKitGame.gameID {
+                if cloudKitGame.lastSaved > unwrappedLocalGame.lastSaved {
+                    syncMonitor.logSync("CloudKit has newer data for same game, updating local...")
+                    
+                    unwrappedLocalGame.boardData = cloudKitGame.boardData
+                    unwrappedLocalGame.notesData = cloudKitGame.notesData
+                    unwrappedLocalGame.elapsedTime = cloudKitGame.elapsedTime
+                    unwrappedLocalGame.mistakes = cloudKitGame.mistakes
+                    unwrappedLocalGame.hintsData = cloudKitGame.hintsData
+                    unwrappedLocalGame.lastSaved = cloudKitGame.lastSaved
+                    unwrappedLocalGame.selectedCellRow = cloudKitGame.selectedCellRow
+                    unwrappedLocalGame.selectedCellCol = cloudKitGame.selectedCellCol
+                    unwrappedLocalGame.highlightedNumber = cloudKitGame.highlightedNumber
+                    unwrappedLocalGame.isPencilMode = cloudKitGame.isPencilMode
+                    unwrappedLocalGame.wasPaused = cloudKitGame.wasPaused
                     
                     try? modelContext.save()
                     syncMonitor.logSync("✅ Local game updated from CloudKit")
-                    
-                    return existingGame
                 } else {
-                    // Create new game with fixed ID
-                    let game = Game(
-                        initialBoardData: cloudKitGame.initialBoardData,
-                        solutionData: cloudKitGame.solutionData,
-                        boardData: cloudKitGame.boardData,
-                        notesData: cloudKitGame.notesData,
-                        difficulty: cloudKitGame.difficulty,
-                        elapsedTime: cloudKitGame.elapsedTime,
-                        startDate: cloudKitGame.startDate,
-                        mistakes: cloudKitGame.mistakes,
-                        hintsData: cloudKitGame.hintsData,
-                        isDailyChallenge: cloudKitGame.isDailyChallenge,
-                        dailyChallengeDate: cloudKitGame.dailyChallengeDate,
-                        isCompleted: false,
-                        completionDate: nil,
-                        lastSaved: cloudKitGame.lastSaved,
-                        gameID: Game.inProgressGameID,  // ✅ Use fixed ID
-                        selectedCellRow: cloudKitGame.selectedCellRow,
-                        selectedCellCol: cloudKitGame.selectedCellCol,
-                        highlightedNumber: cloudKitGame.highlightedNumber,
-                        isPencilMode: cloudKitGame.isPencilMode,
-                        wasPaused: cloudKitGame.wasPaused
-                    )
-                    
-                    modelContext.insert(game)
-                    try? modelContext.save()
-                    syncMonitor.logSync("✅ Local game created from CloudKit")
-                    
-                    return game
+                    syncMonitor.logSync("Local game is up to date (gameID: \(unwrappedLocalGame.gameID))")
                 }
-            } else {
-                syncMonitor.logSync("Local game is up to date")
-                return localGame
+                return unwrappedLocalGame
             }
+            
+            // Different game - CloudKit has a newer game from another device
+            if let unwrappedLocalGame = localGame {
+                syncMonitor.logSync("CloudKit has different game (CloudKit: \(cloudKitGame.gameID) vs Local: \(unwrappedLocalGame.gameID))")
+                syncMonitor.logSync("Replacing local game with newer CloudKit game")
+                
+                // Delete old local game
+                modelContext.delete(unwrappedLocalGame)
+            }
+            
+            // Create new game from CloudKit
+            let game = Game(
+                initialBoardData: cloudKitGame.initialBoardData,
+                solutionData: cloudKitGame.solutionData,
+                boardData: cloudKitGame.boardData,
+                notesData: cloudKitGame.notesData,
+                difficulty: cloudKitGame.difficulty,
+                elapsedTime: cloudKitGame.elapsedTime,
+                startDate: cloudKitGame.startDate,
+                mistakes: cloudKitGame.mistakes,
+                hintsData: cloudKitGame.hintsData,
+                isDailyChallenge: cloudKitGame.isDailyChallenge,
+                dailyChallengeDate: cloudKitGame.dailyChallengeDate,
+                isCompleted: false,
+                completionDate: nil,
+                lastSaved: cloudKitGame.lastSaved,
+                gameID: cloudKitGame.gameID,
+                selectedCellRow: cloudKitGame.selectedCellRow,
+                selectedCellCol: cloudKitGame.selectedCellCol,
+                highlightedNumber: cloudKitGame.highlightedNumber,
+                isPencilMode: cloudKitGame.isPencilMode,
+                wasPaused: cloudKitGame.wasPaused
+            )
+            
+            modelContext.insert(game)
+            try? modelContext.save()
+            syncMonitor.logSync("✅ Local game replaced with CloudKit game")
+            
+            return game
         } catch {
             syncMonitor.logError("Failed to sync from CloudKit: \(error.localizedDescription)")
-            return nil
+            
+            // On error, return local game if available
+            return fetchInProgressGame()
         }
     }
     
     // MARK: - Completed Games
     
-    /// Saves a completed game to the history.
+    /// Downloads completed games from CloudKit and merges them with local storage.
+    ///
+    /// This should be called when the app comes to foreground to get completed games
+    /// from other devices.
+    func syncCompletedGamesFromCloudKit() async {
+        do {
+            let cloudKitGames = try await cloudKitService.downloadCompletedGames()
+            
+            if cloudKitGames.isEmpty {
+                syncMonitor.logSync("No completed games in CloudKit")
+                return
+            }
+            
+            syncMonitor.logSync("Downloaded \(cloudKitGames.count) completed games from CloudKit")
+            
+            // Get all local completed game IDs for quick lookup
+            let localGames = fetchCompletedGames()
+            let localGameIDs = Set(localGames.map { $0.gameID })
+            
+            var newGamesCount = 0
+            
+            // Add games that don't exist locally
+            for cloudGame in cloudKitGames {
+                if !localGameIDs.contains(cloudGame.gameID) {
+                    // This is a new game from another device
+                    let game = Game(
+                        initialBoardData: cloudGame.initialBoardData,
+                        solutionData: cloudGame.solutionData,
+                        boardData: cloudGame.boardData,
+                        notesData: cloudGame.notesData,
+                        difficulty: cloudGame.difficulty,
+                        elapsedTime: cloudGame.elapsedTime,
+                        startDate: cloudGame.startDate,
+                        mistakes: cloudGame.mistakes,
+                        hintsData: cloudGame.hintsData,
+                        isDailyChallenge: cloudGame.isDailyChallenge,
+                        dailyChallengeDate: cloudGame.dailyChallengeDate,
+                        isCompleted: true,
+                        completionDate: cloudGame.completionDate,
+                        lastSaved: cloudGame.lastSaved,
+                        gameID: cloudGame.gameID
+                    )
+                    
+                    modelContext.insert(game)
+                    newGamesCount += 1
+                }
+            }
+            
+            if newGamesCount > 0 {
+                try? modelContext.save()
+                syncMonitor.logSync("✅ Added \(newGamesCount) new completed games from CloudKit")
+            } else {
+                syncMonitor.logSync("All completed games are already synced")
+            }
+        } catch {
+            syncMonitor.logError("Failed to sync completed games from CloudKit: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Marks an in-progress game as completed.
+    ///
+    /// Updates the existing game record rather than creating a new one,
+    /// allowing other devices to see the completion status.
     ///
     /// - Parameters:
+    ///   - gameID: The unique identifier of the game being completed.
     ///   - initialBoard: The initial puzzle board.
     ///   - solution: The solution board.
     ///   - finalBoard: The final board state when completed.
@@ -423,6 +625,7 @@ class PersistenceService {
     ///   - isDailyChallenge: Whether this was a daily challenge.
     ///   - dailyChallengeDate: The date string for daily challenges.
     func saveCompletedGame(
+        gameID: String,
         initialBoard: [[Int]],
         solution: [[Int]],
         finalBoard: [[Int]],
@@ -435,41 +638,80 @@ class PersistenceService {
         isDailyChallenge: Bool,
         dailyChallengeDate: String?
     ) {
-        let initialBoardData = Game.flatten(initialBoard)
-        let solutionData = Game.flatten(solution)
         let finalBoardData = Game.flatten(finalBoard)
         let hintsData = Game.flatten(hints)
-        
         let timestamp = Date()
         
-        let completedGame = Game(
-            initialBoardData: initialBoardData,
-            solutionData: solutionData,
-            boardData: finalBoardData,
-            notesData: Data(), // No notes for completed games
-            difficulty: difficulty,
-            elapsedTime: completionTime,
-            startDate: startDate,
-            mistakes: mistakes,
-            hintsData: hintsData,
-            isDailyChallenge: isDailyChallenge,
-            dailyChallengeDate: dailyChallengeDate,
-            isCompleted: true,
-            completionDate: completionDate,
-            lastSaved: timestamp
+        // Try to find and update the existing game
+        let descriptor = FetchDescriptor<Game>(
+            predicate: #Predicate<Game> { game in
+                game.gameID == gameID
+            }
         )
         
-        modelContext.insert(completedGame)
-        syncMonitor.logSave("Completed game saved (difficulty: \(difficulty), time: \(Int(completionTime))s, hints: \(completedGame.hintsUsed))")
-        forceSave()
-        
-        // Upload to CloudKit immediately with the SAME timestamp
-        Task {
-            do {
-                try await cloudKitService.uploadGame(completedGame, timestamp: timestamp)
-            } catch {
-                // Log error but don't fail the save
-                syncMonitor.logError("CloudKit upload failed (saved locally): \(error.localizedDescription)")
+        if let existingGame = try? modelContext.fetch(descriptor).first {
+            // Update existing game to mark as completed
+            existingGame.boardData = finalBoardData
+            existingGame.notesData = Data() // Clear notes for completed game
+            existingGame.elapsedTime = completionTime
+            existingGame.mistakes = mistakes
+            existingGame.hintsData = hintsData
+            existingGame.isCompleted = true
+            existingGame.completionDate = completionDate
+            existingGame.lastSaved = timestamp
+            // Clear UI state for completed games
+            existingGame.selectedCellRow = nil
+            existingGame.selectedCellCol = nil
+            existingGame.highlightedNumber = nil
+            existingGame.isPencilMode = false
+            existingGame.wasPaused = false
+            
+            syncMonitor.logSave("Game marked as completed (gameID: \(gameID), time: \(Int(completionTime))s, hints: \(existingGame.hintsUsed))")
+            forceSave()
+            
+            // Upload to CloudKit
+            Task {
+                do {
+                    try await cloudKitService.uploadGame(existingGame, timestamp: timestamp)
+                } catch {
+                    syncMonitor.logError("CloudKit upload failed (saved locally): \(error.localizedDescription)")
+                }
+            }
+        } else {
+            // Fallback: create new completed game if no in-progress game found
+            // (This handles edge cases where the game wasn't saved in-progress)
+            let initialBoardData = Game.flatten(initialBoard)
+            let solutionData = Game.flatten(solution)
+            
+            let completedGame = Game(
+                initialBoardData: initialBoardData,
+                solutionData: solutionData,
+                boardData: finalBoardData,
+                notesData: Data(),
+                difficulty: difficulty,
+                elapsedTime: completionTime,
+                startDate: startDate,
+                mistakes: mistakes,
+                hintsData: hintsData,
+                isDailyChallenge: isDailyChallenge,
+                dailyChallengeDate: dailyChallengeDate,
+                isCompleted: true,
+                completionDate: completionDate,
+                lastSaved: timestamp,
+                gameID: gameID
+            )
+            
+            modelContext.insert(completedGame)
+            syncMonitor.logSave("Completed game created (gameID: \(gameID), time: \(Int(completionTime))s, hints: \(completedGame.hintsUsed))")
+            forceSave()
+            
+            // Upload to CloudKit
+            Task {
+                do {
+                    try await cloudKitService.uploadGame(completedGame, timestamp: timestamp)
+                } catch {
+                    syncMonitor.logError("CloudKit upload failed (saved locally): \(error.localizedDescription)")
+                }
             }
         }
     }

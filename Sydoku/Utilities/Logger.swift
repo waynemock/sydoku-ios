@@ -43,6 +43,12 @@ struct AppLogger: Sendable {
 		logger.info("\(typeName).\(functionName): \(message)")
 	}
 	
+	/// Logs a warning message.
+	func warning(_ object: Any, _ message: String, functionName: String = #function) {
+		let typeName = String(describing: type(of: object))
+		logger.warning("\(typeName).\(functionName): \(message)")
+	}
+	
 	/// Logs an error message.
 	func error(_ object: Any, _ message: String, functionName: String = #function) {
 		let typeName = String(describing: type(of: object))
