@@ -13,6 +13,8 @@ struct InputControls: View {
     
     var body: some View {
         HStack(spacing: 8) {
+            Spacer()
+            
             // Undo button
             Button(action: { game.undo() }) {
                 Image(systemName: "arrow.uturn.backward")
@@ -24,7 +26,7 @@ struct InputControls: View {
                             .fill(game.canUndo ? theme.primaryAccent : theme.secondaryText.opacity(0.25))
                     )
             }
-            .disabled(!game.canUndo || game.isGenerating || game.isPaused || game.isGameOver)
+            .disabled(!game.canUndo || game.isGenerating || game.isPaused || game.isMistakeLimitReached)
             .buttonStyle(ScaleButtonStyle())
             
             // Center: Input mode controls (Pen/Notes)
@@ -55,7 +57,7 @@ struct InputControls: View {
                             .frame(width: 88, height: 52)
                     }
                     .buttonStyle(.plain)
-                    .disabled(game.isPaused || game.isGameOver)
+                    .disabled(game.isPaused || game.isMistakeLimitReached)
                     
                     // Notes button (pencil mode)
                     Button(action: { 
@@ -69,7 +71,7 @@ struct InputControls: View {
                             .frame(width: 88, height: 52)
                     }
                     .buttonStyle(.plain)
-                    .disabled(game.isPaused || game.isGameOver)
+                    .disabled(game.isPaused || game.isMistakeLimitReached)
                 }
             }
             
@@ -84,8 +86,10 @@ struct InputControls: View {
                             .fill(game.canRedo ? theme.primaryAccent : theme.secondaryText.opacity(0.25))
                     )
             }
-            .disabled(!game.canRedo || game.isGenerating || game.isPaused || game.isGameOver)
+            .disabled(!game.canRedo || game.isGenerating || game.isPaused || game.isMistakeLimitReached)
             .buttonStyle(ScaleButtonStyle())
+            
+            Spacer()
         }
         .padding(.horizontal)
     }

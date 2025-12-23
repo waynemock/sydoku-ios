@@ -26,7 +26,7 @@ struct TimerButtonView: View {
                         .fill(theme.primaryAccent.opacity(0.2))
                 )
             }
-            .disabled(game.isGenerating || game.isComplete || game.isGameOver)
+            .disabled(game.isGenerating || game.isComplete || game.isMistakeLimitReached)
             .buttonStyle(ScaleButtonStyle())
         }
     }

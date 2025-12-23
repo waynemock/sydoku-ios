@@ -20,17 +20,17 @@ struct MenuButtonView: View {
             Button(action: { game.giveHint() }) {
                 Label("Show Hint", systemImage: "lightbulb")
             }
-            .disabled(game.isGenerating || game.isComplete || game.isPaused || game.isGameOver)
+            .disabled(game.isGenerating || game.isComplete || game.isPaused || game.isMistakeLimitReached)
             
             Button(action: { game.autoFillNotes() }) {
                 Label("Auto Notes", systemImage: "wand.and.stars")
             }
-            .disabled(game.isGenerating || game.isPaused || game.isGameOver)
+            .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached)
             
             Button(action: { game.clearAllNotes() }) {
                 Label("Clear Notes", systemImage: "trash")
             }
-            .disabled(game.isGenerating || game.isPaused || game.isGameOver)
+            .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached)
 
             Divider()
             

@@ -85,7 +85,7 @@ struct MainView: View {
                             if game.isDailyChallengeExpired {
                                 showingExpiredDailyAlert = true
                             } else {
-                                game.loadSavedGame()
+                                game.postLoadSetup()
                             }
                         } else {
                             showingNewGamePicker = true
@@ -119,7 +119,7 @@ struct MainView: View {
                             showingExpiredDailyAlert = true
                         } else {
                             // Automatically load the saved game (no alert needed)
-                            game.loadSavedGame()
+                            game.postLoadSetup()
                         }
                     } else {
                         // No saved game - show the new game picker so user can choose difficulty
@@ -144,7 +144,7 @@ struct MainView: View {
                 
             case .background:
                 // App going to background - save current state
-                if !game.isComplete && !game.isGameOver {
+                if !game.isComplete && !game.isMistakeLimitReached {
                     game.saveGame()
                 }
             default:
@@ -167,9 +167,12 @@ struct MainView: View {
         ZStack {
             VStack(spacing: 0) {
                 // Sync banner (timeout or background syncing)
-                if syncTimedOut || isBackgroundSyncing {
-                    syncBanner
-                }
+                SyncBanner(
+                    game: game,
+                    syncTimedOut: $syncTimedOut,
+                    isBackgroundSyncing: $isBackgroundSyncing,
+                    isRetrying: $isRetrying
+                )
                 
                 // Header with title and controls
                 HeaderView(
@@ -188,54 +191,10 @@ struct MainView: View {
                 StatusView(game: game, theme: theme)
                 
                 // Sudoku Board
-                GeometryReader { geometry in
-                    let boardSize = min(geometry.size.width, geometry.size.height)
-                    
-                    ZStack {
-                        SudokuBoard(game: game, cellSize: boardSize / 9)
-                            .frame(width: boardSize, height: boardSize)
-                            .opacity(game.isGenerating ? 0.5 : 1.0)
-                        
-                        // Overlays in separate layer to avoid clipping
-                        if game.isPaused {
-                            PauseOverlay(game: game)
-                                .frame(width: boardSize, height: boardSize)
-                                .clipped()
-                        }
-                        if game.isGameOver {
-                            GameOverOverlay(game: game, showingNewGamePicker: $showingNewGamePicker)
-                                .frame(width: boardSize, height: boardSize)
-                                .clipped()
-                        }
-                    }
-                    .frame(width: boardSize, height: boardSize)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .padding()
-                .aspectRatio(1, contentMode: .fit)
+                SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
                 
-                // Input controls (Pen/Notes/Undo/Redo) - always above number pad
-                ZStack {
-                    // Centered input controls
-                    HStack {
-                        Spacer()
-                        InputControls(game: game, theme: theme)
-                        Spacer()
-                    }
-                }
-                
-                // Number Pad
-                NumberPad(game: game)
-                    .disabled(game.isGenerating || game.isPaused || game.isGameOver)
-                
-                // Mistakes and Timer, always reserve space for it
-                HStack(spacing: 16) {
-                    MistakesCounter(game: game, theme: theme)
-                    Spacer()
-                    TimerButtonView(game: game, theme: theme)
-                }
-                .padding(.horizontal)
-                .frame(maxWidth: 600, minHeight: 36)  // Limit to portrait-like width
+                // Footer with input controls, number pad and status indicators
+                FooterView(game: game, theme: theme)
                 
                 Spacer()
             }
@@ -248,20 +207,7 @@ struct MainView: View {
             }
         }
         .toast(isPresented: $showingErrorCheckingToast, edge: .bottom) {
-            HStack(spacing: 8) {
-                Image(systemName: game.settings.autoErrorChecking ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                Text(game.settings.autoErrorChecking ? "Auto Error Checking On" : "Auto Error Checking Off")
-                    .font(.subheadline.weight(.semibold))
-            }
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .frame(height: 44)
-            .background(
-                Capsule()
-                    .fill(theme.primaryAccent)
-            )
-            .shadow(radius: 8)
+            AutoErrorCheckingToast(isEnabled: game.settings.autoErrorChecking, theme: theme)
         }
         .environment(\.theme, theme)
         .sheet(isPresented: $showingHistory) {
@@ -287,18 +233,13 @@ struct MainView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sensoryFeedback(.error, trigger: game.triggerErrorHaptic)
         .sensoryFeedback(.success, trigger: game.triggerSuccessHaptic)
-        .alert(isPresented: $showingExpiredDailyAlert) {
-            Alert(
-                title: Text("Yesterday's Daily Challenge"),
-                message: Text("This daily challenge is from a previous day. You can continue playing, but it won't count toward your statistics or streak. Start today's challenge instead?"),
-                primaryButton: .default(Text("Today's Challenge")) {
-                    showingNewGamePicker = true
-                },
-                secondaryButton: .cancel(Text("Continue Anyway")) {
-                    game.loadSavedGame()
-                }
-            )
-        }
+        .startTodaysChallengeAlert(
+            isPresented: $showingExpiredDailyAlert,
+            game: game,
+            onStartToday: {
+                showingNewGamePicker = true
+            }
+        )
         .newGamePicker(isPresented: $showingNewGamePicker, game: game, theme: theme)
         .onChange(of: game.hasInProgressGame) { _, hasInProgressGame in
             // If a saved game is detected (e.g., from iCloud sync), dismiss the new game picker
@@ -306,114 +247,30 @@ struct MainView: View {
                 showingNewGamePicker = false
                 // Load the saved game if not already loaded
                 if !game.isDailyChallengeExpired && game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
-                    game.loadSavedGame()
+                    game.postLoadSetup()
                 }
             }
         }
         .onChange(of: showingStats) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isGameOver {
+            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
                 game.startTimer()
             }
         }
         .onChange(of: showingSettings) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isGameOver {
+            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
                 game.startTimer()
             }
         }
         .onChange(of: showingAbout) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isGameOver {
+            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
                 game.startTimer()
             }
         }
         .onChange(of: showingCloudKitInfo) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isGameOver {
+            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
                 game.startTimer()
             }
         }
-    }
-    
-    /// Banner shown for sync status (background syncing or timeout).
-    private var syncBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: isBackgroundSyncing || isRetrying ? "icloud.and.arrow.down" : "exclamationmark.icloud")
-                .font(.title3)
-                .foregroundStyle(.white)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(isBackgroundSyncing || isRetrying ? "Syncing..." : "Connection Issue")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text(isBackgroundSyncing || isRetrying ? "Syncing with iCloud in the background" : "Playing offline with local data")
-                    .font(.caption)
-                    .foregroundStyle(.white.opacity(0.9))
-            }
-            
-            Spacer()
-            
-            // Show retry button only if not currently syncing
-            if !isBackgroundSyncing && !isRetrying {
-                Button {
-                    // Retry sync
-                    isRetrying = true
-                    Task {
-                        await game.syncAllFromCloudKit()
-                        // If we get here, sync completed successfully
-                        await MainActor.run {
-                            withAnimation {
-                                syncTimedOut = false
-                                isRetrying = false
-                            }
-                        }
-                    }
-                } label: {
-                    HStack(spacing: 6) {
-                        if isRetrying {
-                            ProgressView()
-                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                .scaleEffect(0.8)
-                        }
-                        Text("Retry")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(.white.opacity(0.2))
-                    )
-                }
-            } else {
-                // Show progress indicator when syncing
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                    .scaleEffect(0.9)
-            }
-            
-            Button {
-                withAnimation {
-                    syncTimedOut = false
-                    isRetrying = false
-                    isBackgroundSyncing = false
-                }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 20, height: 20)
-            }
-            .disabled(isRetrying || isBackgroundSyncing)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(
-            LinearGradient(
-                colors: isBackgroundSyncing || isRetrying ? [.blue, .blue.opacity(0.8)] : [.orange, .orange.opacity(0.8)],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        )
-        .transition(.move(edge: .top).combined(with: .opacity))
     }
     
     /// Loads the theme from settings.

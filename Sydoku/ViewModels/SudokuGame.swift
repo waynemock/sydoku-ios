@@ -13,20 +13,25 @@ class SudokuGame: ObservableObject {
     
     // MARK: - Published Properties
     
+    // MARK: Board State
     /// The current state of the game board (9x9 grid).
     @Published var board: [[Int]]
-    
-    /// Pencil mark notes for each cell (9x9 grid of sets).
-    @Published var notes: [[Set<Int>]]
-    
-    /// The solution to the current puzzle (9x9 grid).
-    @Published var solution: [[Int]]
     
     /// The initial puzzle state with given numbers (9x9 grid).
     @Published var initialBoard: [[Int]]
     
-    /// The currently selected cell coordinates, or `nil` if no cell is selected.
-    @Published var selectedCell: (row: Int, col: Int)?
+    /// The solution to the current puzzle (9x9 grid).
+    @Published var solution: [[Int]]
+    
+    /// Pencil mark notes for each cell (9x9 grid of sets).
+    @Published var notes: [[Set<Int>]]
+    
+    /// The number of hints taken in the current game.
+    @Published var hints: [[Int]]
+    
+    // MARK: Game State
+    /// Whether a new puzzle is currently being generated.
+    @Published var isGenerating = false
     
     /// Whether the puzzle has been completed successfully.
     @Published var isComplete = false
@@ -34,50 +39,47 @@ class SudokuGame: ObservableObject {
     /// Whether the current board has any rule violations.
     @Published var hasError = false
     
-    /// Whether a new puzzle is currently being generated.
-    @Published var isGenerating = false
-    
-    /// Whether pencil mode is active for entering notes.
-    @Published var isPencilMode = false
-    
-    /// The number currently highlighted on the board, or `nil` if none.
-    @Published var highlightedNumber: Int?
-    
-    /// The elapsed time for the current game in seconds.
-    @Published var elapsedTime: TimeInterval = 0
-    
-    /// Statistics tracking performance across games.
-    @Published var stats = GameStats()
+    /// Whether the game has ended (e.g., reached mistake limit).
+    @Published var isMistakeLimitReached = false
+
+    /// Whether the game is currently paused.
+    @Published var isPaused = false
     
     /// Whether an in-progress game exists that can be resumed.
     @Published var hasInProgressGame = false
     
-    /// Whether the game is currently paused.
-    @Published var isPaused = false
-    
-    /// The number of mistakes made in the current game.
-    @Published var mistakes = 0
-    
-    /// The number of hints taken in the current game.
-    @Published var hints: [[Int]]
-    
-    /// Whether the game has ended (e.g., reached mistake limit).
-    @Published var isGameOver = false
-    
-    /// Game settings and preferences.
-    @Published var settings = GameSettings()
+    // MARK: UI State
+    /// The currently selected cell coordinates, or `nil` if no cell is selected.
+    @Published var selectedCell: (row: Int, col: Int)?
     
     /// The coordinates of the most recently placed number.
     @Published var lastPlacedCell: (row: Int, col: Int)?
     
+    /// The number currently highlighted on the board, or `nil` if none.
+    @Published var highlightedNumber: Int?
+    
+    /// Whether pencil mode is active for entering notes.
+    @Published var isPencilMode = false
+    
     /// Whether to show the confetti celebration animation.
     @Published var showConfetti = false
     
+    // MARK: Game Progress
+    /// The elapsed time for the current game in seconds.
+    @Published var elapsedTime: TimeInterval = 0
+    
+    /// The number of mistakes made in the current game.
+    @Published var mistakes = 0
+    
+    // MARK: Daily Challenge
     /// Whether the current game is a daily challenge.
     @Published var isDailyChallenge = false
     
     /// The date string of the current daily challenge (if applicable).
     var dailyChallengeDate: String?
+    
+    /// Whether today's daily challenge has been completed.
+    @Published var dailyChallengeCompleted = false
     
     /// Whether the saved daily challenge is from a previous day.
     var isDailyChallengeExpired: Bool {
@@ -88,9 +90,14 @@ class SudokuGame: ObservableObject {
         return savedDate != todayString
     }
     
-    /// Whether today's daily challenge has been completed.
-    @Published var dailyChallengeCompleted = false
+    // MARK: Settings & Stats
+    /// Game settings and preferences.
+    @Published var settings = GameSettings()
     
+    /// Statistics tracking performance across games.
+    @Published var stats = GameStats()
+    
+    // MARK: Haptics
     /// Triggers haptic feedback for errors when toggled.
     @Published var triggerErrorHaptic = false
     
@@ -290,7 +297,7 @@ class SudokuGame: ObservableObject {
                 if isPaused {
                     stopTimer()
                     logger.info(self, "Game is paused, timer stopped")
-                } else if !isComplete && !isGameOver {
+                } else if !isComplete && !isMistakeLimitReached {
                     startTimer()
                     logger.info(self, "Game is running, timer started")
                 }
@@ -387,7 +394,7 @@ class SudokuGame: ObservableObject {
     
     /// Resumes the game timer if the game is in progress.
     func resumeTimer() {
-        if !isComplete && !isGenerating && !isGameOver {
+        if !isComplete && !isGenerating && !isMistakeLimitReached {
             isPaused = false
             
             // Cancel any pending debounced saves to ensure resume state is saved immediately
@@ -432,7 +439,7 @@ class SudokuGame: ObservableObject {
     
     func saveGame() {
         // Don't save if the game is already complete or game over
-        if isComplete || isGameOver {
+        if isComplete || isMistakeLimitReached {
             return
         }
         
@@ -468,15 +475,10 @@ class SudokuGame: ObservableObject {
         logger.debug(self, "Game saved (isPaused: \(isPaused), time: \(Int(elapsedTime))s)")
     }
     
-    func loadSavedGame() {
-        // Game data is already loaded in checkForSavedGame() or syncAllFromCloudKit()
-        // Just reset game state and start the timer (only if not paused)
-        // NOTE: Don't reset UI state (selectedCell, highlightedNumber, isPencilMode) 
-        // as these were already restored from the saved game
-        // NOTE: Don't clear undo/redo stacks - they were already restored from saved game
+    func postLoadSetup() {
         isComplete = false
         hasError = false
-        isGameOver = false
+        isMistakeLimitReached = false
         
         // Only start timer if the game wasn't paused when saved
         if !isPaused {
@@ -644,7 +646,7 @@ class SudokuGame: ObservableObject {
         self.isComplete = false
         self.hasError = false
         self.isGenerating = false
-        self.isGameOver = false
+        self.isMistakeLimitReached = false
         self.selectedCell = nil
         self.undoStack.removeAll()
         self.redoStack.removeAll()
@@ -923,7 +925,7 @@ class SudokuGame: ObservableObject {
                     }
                     
                     if settings.mistakeLimit > 0 && mistakes >= settings.mistakeLimit {
-                        isGameOver = true
+                        isMistakeLimitReached = true
                         stopTimer()
                     }
                 }
@@ -1228,7 +1230,7 @@ class SudokuGame: ObservableObject {
         hints = Array(repeating: Array(repeating: 0, count: SudokuGame.size), count: SudokuGame.size)
         elapsedTime = 0
         isComplete = false
-        isGameOver = false
+        isMistakeLimitReached = false
         isDailyChallenge = false
         
         startTimer()
