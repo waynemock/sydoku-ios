@@ -49,7 +49,7 @@ struct MenuButtonView: View {
             Divider()
             
             Button(action: { showingHistory = true }) {
-                Label("Game History", systemImage: "chart.bar.fill")
+                Label("Game History", systemImage: "fossil.shell.fill")
             }
             
             Button(action: { showingStats = true }) {
