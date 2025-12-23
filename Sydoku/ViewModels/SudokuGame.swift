@@ -49,8 +49,8 @@ class SudokuGame: ObservableObject {
     /// Statistics tracking performance across games.
     @Published var stats = GameStats()
     
-    /// Whether a saved game exists that can be resumed.
-    @Published var hasSavedGame = false
+    /// Whether an in-progress game exists that can be resumed.
+    @Published var hasInProgressGame = false
     
     /// Whether the game is currently paused.
     @Published var isPaused = false
@@ -209,7 +209,7 @@ class SudokuGame: ObservableObject {
             
             // After sync completes, if no game was found in CloudKit, check local
             // (This handles the offline case where we might have local data)
-            if !hasSavedGame {
+            if !hasInProgressGame {
                 await MainActor.run {
                     checkForSavedGame()
                 }
@@ -236,6 +236,12 @@ class SudokuGame: ObservableObject {
     func syncAllFromCloudKit() async {
         guard let persistenceService = persistenceService else { return }
         
+        // Cancel any pending debounced saves to prevent overwriting CloudKit data
+        await MainActor.run {
+            saveDebounceTimer?.invalidate()
+            saveDebounceTimer = nil
+        }
+        
         // Download latest game from CloudKit
         if let freshSavedGame = await persistenceService.syncInProgressGameFromCloudKit() {
             // Update the board with CloudKit data
@@ -253,7 +259,7 @@ class SudokuGame: ObservableObject {
                 hints = Game.unflatten(freshSavedGame.hintsData)
                 isDailyChallenge = freshSavedGame.isDailyChallenge
                 dailyChallengeDate = freshSavedGame.dailyChallengeDate
-                hasSavedGame = true
+                hasInProgressGame = true
                 
                 // Store the game ID for future saves
                 currentGameID = freshSavedGame.gameID
@@ -266,21 +272,35 @@ class SudokuGame: ObservableObject {
                 }
                 highlightedNumber = freshSavedGame.highlightedNumber
                 isPencilMode = freshSavedGame.isPencilMode
+                
+                // Update pause state - ensure UI reacts to this change
+                let wasPreviouslyPaused = isPaused
                 isPaused = freshSavedGame.wasPaused
+                
+                // Log pause state change
+                if wasPreviouslyPaused != isPaused {
+                    logger.info(self, "Pause state changed: \(wasPreviouslyPaused) -> \(isPaused)")
+                }
+                
+                // Restore undo/redo stacks
+                undoStack = Game.decodeGameStateStack(freshSavedGame.undoStackData)
+                redoStack = Game.decodeGameStateStack(freshSavedGame.redoStackData)
                 
                 // Manage timer based on pause state
                 if isPaused {
                     stopTimer()
+                    logger.info(self, "Game is paused, timer stopped")
                 } else if !isComplete && !isGameOver {
                     startTimer()
+                    logger.info(self, "Game is running, timer started")
                 }
                 
-                logger.info(self, "Game reloaded from CloudKit")
+                logger.info(self, "Game reloaded from CloudKit (paused: \(isPaused))")
             }
         } else {
             // No game in CloudKit - could mean it was completed/deleted on another device
             await MainActor.run {
-                hasSavedGame = false
+                hasInProgressGame = false
                 currentGameID = nil
                 logger.info(self, "No in-progress game found in CloudKit")
             }
@@ -326,10 +346,24 @@ class SudokuGame: ObservableObject {
             return
         }
         
+        // Don't start timer if game is paused
+        guard !isPaused else {
+            logger.info(self, "Prevented timer start - game is paused")
+            return
+        }
+        
         stopTimer()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.elapsedTime += 1
+            guard let self = self else { return }
+            // Double-check pause state on each tick (in case sync changed it)
+            if self.isPaused {
+                self.stopTimer()
+                self.logger.info(self, "Timer stopped - game was paused")
+                return
+            }
+            self.elapsedTime += 1
         }
+        logger.debug(self, "Timer started")
     }
     
     /// Stops the game timer.
@@ -342,14 +376,27 @@ class SudokuGame: ObservableObject {
     func pauseTimer() {
         stopTimer()
         isPaused = true
+        
+        // Cancel any pending debounced saves to ensure pause state is saved immediately
+        saveDebounceTimer?.invalidate()
+        saveDebounceTimer = nil
+        
+        logger.info(self, "Game paused - saving state (isPaused: \(isPaused))")
         saveGame() // Save when pausing
     }
     
     /// Resumes the game timer if the game is in progress.
     func resumeTimer() {
         if !isComplete && !isGenerating && !isGameOver {
-            startTimer()
             isPaused = false
+            
+            // Cancel any pending debounced saves to ensure resume state is saved immediately
+            saveDebounceTimer?.invalidate()
+            saveDebounceTimer = nil
+            
+            logger.info(self, "Game resumed - saving state (isPaused: \(isPaused))")
+            startTimer()
+            saveGame() // Save when resuming
         }
     }
     
@@ -397,17 +444,6 @@ class SudokuGame: ObservableObject {
             return
         }
         
-        // Check if we have a loaded game and verify it hasn't been completed elsewhere
-        // This prevents overwriting a completed game with stale in-progress data
-        if let existingGame = persistenceService?.fetchInProgressGame() {
-            // If the local game has somehow been marked as completed, don't save over it
-            if existingGame.isCompleted {
-                logger.info(self, "Prevented saving over completed game")
-                deleteSavedGame()
-                return
-            }
-        }
-        
         currentGameID = persistenceService?.saveInProgressGame(
             gameID: currentGameID,
             board: board,
@@ -424,31 +460,28 @@ class SudokuGame: ObservableObject {
             selectedCell: selectedCell,
             highlightedNumber: highlightedNumber,
             isPencilMode: isPencilMode,
-            isPaused: isPaused
+            isPaused: isPaused,
+            undoStack: undoStack,
+            redoStack: redoStack
         )
-        hasSavedGame = true
+        hasInProgressGame = true
+        logger.debug(self, "Game saved (isPaused: \(isPaused), time: \(Int(elapsedTime))s)")
     }
     
     func loadSavedGame() {
-        // Game data is already loaded in checkForSavedGame()
+        // Game data is already loaded in checkForSavedGame() or syncAllFromCloudKit()
         // Just reset game state and start the timer (only if not paused)
         // NOTE: Don't reset UI state (selectedCell, highlightedNumber, isPencilMode) 
-        // as these were already restored from the saved game in checkForSavedGame()
+        // as these were already restored from the saved game
+        // NOTE: Don't clear undo/redo stacks - they were already restored from saved game
         isComplete = false
         hasError = false
         isGameOver = false
-        undoStack.removeAll()
-        redoStack.removeAll()
         
         // Only start timer if the game wasn't paused when saved
         if !isPaused {
             startTimer()
         }
-    }
-    
-    func deleteSavedGame() {
-        persistenceService?.deleteInProgressGame()
-        hasSavedGame = false
     }
     
     private func checkForSavedGame() {
@@ -480,9 +513,13 @@ class SudokuGame: ObservableObject {
             isPencilMode = savedGame.isPencilMode
             isPaused = savedGame.wasPaused
             
-            hasSavedGame = true
+            // Restore undo/redo stacks
+            undoStack = Game.decodeGameStateStack(savedGame.undoStackData)
+            redoStack = Game.decodeGameStateStack(savedGame.redoStackData)
+            
+            hasInProgressGame = true
         } else {
-            hasSavedGame = false
+            hasInProgressGame = false
         }
     }
     
@@ -624,7 +661,6 @@ class SudokuGame: ObservableObject {
         
         self.stats.recordStart(difficulty: difficulty.rawValue)
         self.saveStats()
-        self.deleteSavedGame()
         self.saveGame()
         self.startTimer()
     }
@@ -1030,8 +1066,9 @@ class SudokuGame: ObservableObject {
         
         stats.recordWin(difficulty: currentDifficulty.rawValue, time: elapsedTime)
         saveStats()
-        deleteSavedGame()
-        currentGameID = nil // Clear the game ID after completion
+        
+        hasInProgressGame = false // No longer have an in-progress game to resume
+        
         if settings.hapticFeedback {
             triggerSuccessHaptic.toggle()
         }

@@ -34,7 +34,6 @@ class CloudKitService {
     
     /// Record IDs for singleton records
     private enum RecordID {
-        static let inProgressGame = "current-in-progress-game"
         static let statistics = "user-statistics"
         static let settings = "user-settings"
     }
@@ -108,106 +107,14 @@ class CloudKitService {
         record["highlightedNumber"] = (game.highlightedNumber ?? 0) as CKRecordValue  // Use 0 for nil
         record["isPencilMode"] = (game.isPencilMode ? 1 : 0) as CKRecordValue
         record["wasPaused"] = (game.wasPaused ? 1 : 0) as CKRecordValue
+        record["undoStackData"] = game.undoStackData as CKRecordValue
+        record["redoStackData"] = game.redoStackData as CKRecordValue
         
         do {
             _ = try await database.save(record)
             logSync("✅ \(logType.capitalized) uploaded successfully (gameID: \(recordName), timestamp: \(timestamp))")
         } catch {
             logError("Failed to upload \(logType): \(error.localizedDescription)")
-            throw error
-        }
-    }
-    
-    /// Downloads the current in-progress game from CloudKit.
-    func downloadInProgressGame() async throws -> CloudKitGame? {
-        logSync("Downloading in-progress game from CloudKit...")
-        
-        let recordID = CKRecord.ID(recordName: RecordID.inProgressGame)
-        
-        do {
-            let record = try await database.record(for: recordID)
-            
-            guard let initialBoardData = record["initialBoardData"] as? [Int],
-                  let solutionData = record["solutionData"] as? [Int],
-                  let boardData = record["boardData"] as? [Int],
-                  let notesData = record["notesData"] as? Data,
-                  let difficulty = record["difficulty"] as? String,
-                  let elapsedTime = record["elapsedTime"] as? Double,
-                  let startDate = record["startDate"] as? Date,
-                  let mistakes = record["mistakes"] as? Int,
-                  let hintsData = record["hintsData"] as? [Int],
-                  let isDailyChallengeInt = record["isDailyChallenge"] as? Int,
-                  let isCompletedInt = record["isCompleted"] as? Int,
-                  let lastSaved = record["lastSaved"] as? Date,
-                  let gameID = record["gameID"] as? String else {
-                logError("Failed to parse in-progress game record")
-                return nil
-            }
-            
-            // Make sure this is actually an in-progress game
-            guard isCompletedInt == 0 else {
-                logError("Retrieved record is not an in-progress game")
-                return nil
-            }
-            
-            let dailyChallengeDate = record["dailyChallengeDate"] as? String
-            let isDailyChallenge = isDailyChallengeInt == 1
-            
-            // UI state fields (use defaults if not present for backwards compatibility)
-            let selectedCellRow = record["selectedCellRow"] as? Int
-            let selectedCellCol = record["selectedCellCol"] as? Int
-            let highlightedNumber = record["highlightedNumber"] as? Int
-            let isPencilModeInt = record["isPencilMode"] as? Int ?? 0
-            let wasPausedInt = record["wasPaused"] as? Int ?? 0
-            
-            logSync("✅ In-progress game downloaded (saved: \(lastSaved))")
-            
-            return CloudKitGame(
-                initialBoardData: initialBoardData,
-                solutionData: solutionData,
-                boardData: boardData,
-                notesData: notesData,
-                difficulty: difficulty,
-                elapsedTime: elapsedTime,
-                startDate: startDate,
-                mistakes: mistakes,
-                hintsData: hintsData,
-                isDailyChallenge: isDailyChallenge,
-                dailyChallengeDate: (dailyChallengeDate?.isEmpty == false) ? dailyChallengeDate : nil,
-                isCompleted: false,
-                completionDate: nil,
-                lastSaved: lastSaved,
-                gameID: gameID,
-                selectedCellRow: (selectedCellRow == -1) ? nil : selectedCellRow,
-                selectedCellCol: (selectedCellCol == -1) ? nil : selectedCellCol,
-                highlightedNumber: (highlightedNumber == 0) ? nil : highlightedNumber,
-                isPencilMode: isPencilModeInt == 1,
-                wasPaused: wasPausedInt == 1
-            )
-        } catch let error as CKError where error.code == .unknownItem {
-            // No in-progress game exists yet
-            logSync("No in-progress game found in CloudKit")
-            return nil
-        } catch {
-            logError("Failed to download in-progress game: \(error.localizedDescription)")
-            throw error
-        }
-    }
-    
-    /// Deletes the in-progress game from CloudKit.
-    func deleteInProgressGame() async throws {
-        logSync("Deleting in-progress game from CloudKit...")
-        
-        let recordID = CKRecord.ID(recordName: RecordID.inProgressGame)
-        
-        do {
-            _ = try await database.deleteRecord(withID: recordID)
-            logSync("✅ In-progress game deleted from CloudKit")
-        } catch let error as CKError where error.code == .unknownItem {
-            // Already deleted, that's fine
-            logSync("In-progress game already deleted")
-        } catch {
-            logError("Failed to delete in-progress game: \(error.localizedDescription)")
             throw error
         }
     }
@@ -368,6 +275,8 @@ class CloudKitService {
         var highlightedNumber: Int? = nil
         var isPencilMode = false
         var wasPaused = false
+        var undoStackData = Data()
+        var redoStackData = Data()
         
         if !isCompleted {
             selectedCellRow = record["selectedCellRow"] as? Int
@@ -375,6 +284,8 @@ class CloudKitService {
             highlightedNumber = record["highlightedNumber"] as? Int
             isPencilMode = (record["isPencilMode"] as? Int ?? 0) == 1
             wasPaused = (record["wasPaused"] as? Int ?? 0) == 1
+            undoStackData = (record["undoStackData"] as? Data) ?? Data()
+            redoStackData = (record["redoStackData"] as? Data) ?? Data()
         }
         
         return CloudKitGame(
@@ -397,7 +308,9 @@ class CloudKitService {
             selectedCellCol: (selectedCellCol == -1) ? nil : selectedCellCol,
             highlightedNumber: (highlightedNumber == 0) ? nil : highlightedNumber,
             isPencilMode: isPencilMode,
-            wasPaused: wasPaused
+            wasPaused: wasPaused,
+            undoStackData: undoStackData,
+            redoStackData: redoStackData
         )
     }
     
@@ -652,4 +565,6 @@ struct CloudKitGame {
     let highlightedNumber: Int?
     let isPencilMode: Bool
     let wasPaused: Bool
+    let undoStackData: Data
+    let redoStackData: Data
 }

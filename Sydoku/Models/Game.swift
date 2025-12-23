@@ -84,6 +84,14 @@ final class Game {
     /// Whether the game was paused when saved. Only used for in-progress games.
     var wasPaused: Bool = false
     
+    // MARK: - Undo/Redo State (for seamless resume)
+    
+    /// The undo stack serialized as JSON data. Only used for in-progress games.
+    var undoStackData: Data = Data()
+    
+    /// The redo stack serialized as JSON data. Only used for in-progress games.
+    var redoStackData: Data = Data()
+    
     /// Creates a new game record.
     ///
     /// - Parameters:
@@ -107,6 +115,8 @@ final class Game {
     ///   - highlightedNumber: Highlighted number (for resume).
     ///   - isPencilMode: Pencil mode state (for resume).
     ///   - wasPaused: Paused state (for resume).
+    ///   - undoStackData: Serialized undo stack (for resume).
+    ///   - redoStackData: Serialized redo stack (for resume).
     init(
         initialBoardData: [Int],
         solutionData: [Int],
@@ -127,7 +137,9 @@ final class Game {
         selectedCellCol: Int? = nil,
         highlightedNumber: Int? = nil,
         isPencilMode: Bool = false,
-        wasPaused: Bool = false
+        wasPaused: Bool = false,
+        undoStackData: Data = Data(),
+        redoStackData: Data = Data()
     ) {
         self.initialBoardData = initialBoardData
         self.solutionData = solutionData
@@ -149,6 +161,8 @@ final class Game {
         self.highlightedNumber = highlightedNumber
         self.isPencilMode = isPencilMode
         self.wasPaused = wasPaused
+        self.undoStackData = undoStackData
+        self.redoStackData = redoStackData
     }
     
     /// Converts a 9x9 2D array to a flat array for storage.
@@ -186,5 +200,16 @@ final class Game {
         return notesArray.map { row in
             row.map { Set($0) }
         }
+    }
+    
+    /// Encodes an undo/redo stack to Data.
+    static func encodeGameStateStack(_ stack: [GameState]) -> Data {
+        return (try? JSONEncoder().encode(stack)) ?? Data()
+    }
+    
+    /// Decodes an undo/redo stack from Data.
+    static func decodeGameStateStack(_ data: Data) -> [GameState] {
+        guard !data.isEmpty else { return [] }
+        return (try? JSONDecoder().decode([GameState].self, from: data)) ?? []
     }
 }

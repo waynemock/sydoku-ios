@@ -76,7 +76,7 @@ struct HeaderView: View {
                     }
                     
                     // Puzzle type and difficulty
-                    if !game.isGenerating && (game.hasSavedGame || !game.initialBoard.allSatisfy({ $0.allSatisfy({ $0 == 0 }) })) {
+                    if !game.isGenerating && (game.hasInProgressGame || !game.initialBoard.allSatisfy({ $0.allSatisfy({ $0 == 0 }) })) {
                         Text(game.isDailyChallenge ? "Daily Challenge • \(game.difficulty.name)" : game.difficulty.name)
                             .font(.appSubheadline)
                             .foregroundColor(theme.secondaryText)

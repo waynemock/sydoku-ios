@@ -81,7 +81,7 @@ struct MainView: View {
                         }
                         
                         // Show new game picker or load saved game
-                        if game.hasSavedGame {
+                        if game.hasInProgressGame {
                             if game.isDailyChallengeExpired {
                                 showingExpiredDailyAlert = true
                             } else {
@@ -113,7 +113,7 @@ struct MainView: View {
                 
                 // After sync completes, check for saved game
                 await MainActor.run {
-                    if game.hasSavedGame {
+                    if game.hasInProgressGame {
                         // Check if it's an expired daily challenge
                         if game.isDailyChallengeExpired {
                             showingExpiredDailyAlert = true
@@ -300,9 +300,9 @@ struct MainView: View {
             )
         }
         .newGamePicker(isPresented: $showingNewGamePicker, game: game, theme: theme)
-        .onChange(of: game.hasSavedGame) { _, hasSavedGame in
+        .onChange(of: game.hasInProgressGame) { _, hasInProgressGame in
             // If a saved game is detected (e.g., from iCloud sync), dismiss the new game picker
-            if hasSavedGame {
+            if hasInProgressGame {
                 showingNewGamePicker = false
                 // Load the saved game if not already loaded
                 if !game.isDailyChallengeExpired && game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {

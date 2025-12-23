@@ -5,7 +5,7 @@ import Foundation
 /// `GameState` captures the essential game data needed for undo/redo functionality.
 /// Each state represents a complete snapshot of the board configuration, notes, and
 /// mistake count, allowing players to step backward and forward through their moves.
-struct GameState {
+struct GameState: Codable {
     /// The state of the 9x9 game board at this point in time.
     ///
     /// Each cell contains a number (1-9) or 0 if empty.

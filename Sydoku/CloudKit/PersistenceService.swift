@@ -243,7 +243,9 @@ class PersistenceService {
         selectedCell: (row: Int, col: Int)?,
         highlightedNumber: Int?,
         isPencilMode: Bool,
-        isPaused: Bool
+        isPaused: Bool,
+        undoStack: [GameState] = [],
+        redoStack: [GameState] = []
     ) -> String {
         // Validate that the board is not empty before saving
         // This prevents saving invalid game states
@@ -259,6 +261,8 @@ class PersistenceService {
         let solutionData = Game.flatten(solution)
         let initialBoardData = Game.flatten(initialBoard)
         let hintsData = Game.flatten(hints)
+        let undoStackData = Game.encodeGameStateStack(undoStack)
+        let redoStackData = Game.encodeGameStateStack(redoStack)
         let timestamp = Date()
         
         // If gameID provided, try to find and update existing game (upsert)
@@ -282,6 +286,8 @@ class PersistenceService {
                 existingGame.highlightedNumber = highlightedNumber
                 existingGame.isPencilMode = isPencilMode
                 existingGame.wasPaused = isPaused
+                existingGame.undoStackData = undoStackData
+                existingGame.redoStackData = redoStackData
                 
                 syncMonitor.logSave("In-progress game updated (gameID: \(gameID), time: \(Int(elapsedTime))s)")
                 forceSave()
@@ -321,7 +327,9 @@ class PersistenceService {
             selectedCellCol: selectedCell?.col,
             highlightedNumber: highlightedNumber,
             isPencilMode: isPencilMode,
-            wasPaused: isPaused
+            wasPaused: isPaused,
+            undoStackData: undoStackData,
+            redoStackData: redoStackData
         )
         
         modelContext.insert(game)
@@ -338,26 +346,6 @@ class PersistenceService {
         }
         
         return newGameID
-    }
-    
-    /// Deletes the saved game.
-    /// Deletes the in-progress game.
-    func deleteInProgressGame() {
-        let descriptor = FetchDescriptor<Game>(
-            predicate: #Predicate { !$0.isCompleted }
-        )
-        if let games = try? modelContext.fetch(descriptor) {
-            for game in games {
-                modelContext.delete(game)
-            }
-            syncMonitor.logDelete("In-progress game deleted")
-            forceSave()
-            
-            // Also delete from CloudKit
-            Task {
-                try? await cloudKitService.deleteInProgressGame()
-            }
-        }
     }
     
     /// Checks if an in-progress game exists.
@@ -464,7 +452,9 @@ class PersistenceService {
                     selectedCellCol: cloudKitGame.selectedCellCol,
                     highlightedNumber: cloudKitGame.highlightedNumber,
                     isPencilMode: cloudKitGame.isPencilMode,
-                    wasPaused: cloudKitGame.wasPaused
+                    wasPaused: cloudKitGame.wasPaused,
+                    undoStackData: cloudKitGame.undoStackData,
+                    redoStackData: cloudKitGame.redoStackData
                 )
                 
                 modelContext.insert(game)
@@ -490,6 +480,8 @@ class PersistenceService {
                     unwrappedLocalGame.highlightedNumber = cloudKitGame.highlightedNumber
                     unwrappedLocalGame.isPencilMode = cloudKitGame.isPencilMode
                     unwrappedLocalGame.wasPaused = cloudKitGame.wasPaused
+                    unwrappedLocalGame.undoStackData = cloudKitGame.undoStackData
+                    unwrappedLocalGame.redoStackData = cloudKitGame.redoStackData
                     
                     try? modelContext.save()
                     syncMonitor.logSync("✅ Local game updated from CloudKit")
@@ -502,10 +494,7 @@ class PersistenceService {
             // Different game - CloudKit has a newer game from another device
             if let unwrappedLocalGame = localGame {
                 syncMonitor.logSync("CloudKit has different game (CloudKit: \(cloudKitGame.gameID) vs Local: \(unwrappedLocalGame.gameID))")
-                syncMonitor.logSync("Replacing local game with newer CloudKit game")
-                
-                // Delete old local game
-                modelContext.delete(unwrappedLocalGame)
+                syncMonitor.logSync("Both games kept as in-progress - CloudKit game becomes current")
             }
             
             // Create new game from CloudKit
@@ -529,7 +518,9 @@ class PersistenceService {
                 selectedCellCol: cloudKitGame.selectedCellCol,
                 highlightedNumber: cloudKitGame.highlightedNumber,
                 isPencilMode: cloudKitGame.isPencilMode,
-                wasPaused: cloudKitGame.wasPaused
+                wasPaused: cloudKitGame.wasPaused,
+                undoStackData: cloudKitGame.undoStackData,
+                redoStackData: cloudKitGame.redoStackData
             )
             
             modelContext.insert(game)
@@ -774,10 +765,10 @@ class PersistenceService {
         return (try? modelContext.fetch(descriptor)) ?? []
     }
     
-    /// Deletes a completed game from history.
+    /// Deletes a game from history.
     ///
     /// - Parameter game: The completed game to delete.
-    func deleteCompletedGame(_ game: Game) {
+    func deleteGame(_ game: Game) {
         modelContext.delete(game)
         syncMonitor.logDelete("Completed game deleted (gameID: \(game.gameID))")
         forceSave()
@@ -785,25 +776,6 @@ class PersistenceService {
         // Also delete from CloudKit
         Task {
             try? await cloudKitService.deleteGame(gameID: game.gameID)
-        }
-    }
-    
-    /// Deletes all completed games from history.
-    func deleteAllCompletedGames() {
-        let descriptor = FetchDescriptor<Game>(
-            predicate: #Predicate { $0.isCompleted }
-        )
-        if let games = try? modelContext.fetch(descriptor) {
-            for game in games {
-                modelContext.delete(game)
-                
-                // Also delete from CloudKit
-                Task {
-                    try? await cloudKitService.deleteGame(gameID: game.gameID)
-                }
-            }
-            syncMonitor.logDelete("All completed games deleted (\(games.count) games)")
-            forceSave()
         }
     }
     
