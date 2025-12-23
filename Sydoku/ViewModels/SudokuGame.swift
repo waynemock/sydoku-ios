@@ -239,7 +239,8 @@ class SudokuGame: ObservableObject {
     /// Syncs all data (settings, statistics, saved game) from CloudKit.
     ///
     /// This is the central sync method that should be called when the app launches
-    /// or returns to foreground.
+    /// or returns to foreground. If we have a currentGameID, it efficiently syncs
+    /// just that game. Otherwise, it looks for any in-progress games.
     func syncAllFromCloudKit() async {
         guard let persistenceService = persistenceService else { return }
         
@@ -249,67 +250,235 @@ class SudokuGame: ObservableObject {
             saveDebounceTimer = nil
         }
         
-        // Download latest game from CloudKit
-        if let freshSavedGame = await persistenceService.syncInProgressGameFromCloudKit() {
-            // Update the board with CloudKit data
-            await MainActor.run {
-                board = Game.unflatten(freshSavedGame.boardData)
-                notes = Game.decodeNotes(freshSavedGame.notesData)
-                solution = Game.unflatten(freshSavedGame.solutionData)
-                initialBoard = Game.unflatten(freshSavedGame.initialBoardData)
-                if let difficulty = Difficulty(rawValue: freshSavedGame.difficulty) {
-                    currentDifficulty = difficulty
-                }
-                elapsedTime = freshSavedGame.elapsedTime
-                gameStartDate = freshSavedGame.startDate
-                mistakes = freshSavedGame.mistakes
-                hints = Game.unflatten(freshSavedGame.hintsData)
-                isDailyChallenge = freshSavedGame.isDailyChallenge
-                dailyChallengeDate = freshSavedGame.dailyChallengeDate
-                hasInProgressGame = true
-                
-                // Store the game ID for future saves
-                currentGameID = freshSavedGame.gameID
-                
-                // Restore UI state for seamless resume
-                if let row = freshSavedGame.selectedCellRow, let col = freshSavedGame.selectedCellCol {
-                    selectedCell = (row, col)
-                } else {
-                    selectedCell = nil
-                }
-                highlightedNumber = freshSavedGame.highlightedNumber
-                isPencilMode = freshSavedGame.isPencilMode
-                
-                // Update pause state - ensure UI reacts to this change
-                let wasPreviouslyPaused = isPaused
-                isPaused = freshSavedGame.wasPaused
-                
-                // Log pause state change
-                if wasPreviouslyPaused != isPaused {
-                    logger.info(self, "Pause state changed: \(wasPreviouslyPaused) -> \(isPaused)")
-                }
-                
-                // Restore undo/redo stacks
-                undoStack = Game.decodeGameStateStack(freshSavedGame.undoStackData)
-                redoStack = Game.decodeGameStateStack(freshSavedGame.redoStackData)
-                
-                // Manage timer based on pause state
-                if isPaused {
-                    stopTimer()
-                    logger.info(self, "Game is paused, timer stopped")
-                } else if !isComplete && !isMistakeLimitReached {
-                    startTimer()
-                    logger.info(self, "Game is running, timer started")
+        // Get the current game ID if we have one
+        let gameID = await MainActor.run { currentGameID }
+        
+        // Sync the game state
+        if let gameID = gameID, !gameID.isEmpty {
+            // We have a current game - sync that specific game
+            logger.info(self, "Syncing specific game (gameID: \(gameID))")
+            let (syncedGame, wasCompleted) = await persistenceService.syncGameFromCloudKit(gameID: gameID)
+            
+            if wasCompleted {
+                // Game was completed on another device - load the completed state
+                if let game = syncedGame {
+                    await MainActor.run {
+                        logger.info(self, "Current game was completed on another device")
+                        
+                        // Load the completed board state
+                        board = Game.unflatten(game.boardData)
+                        solution = Game.unflatten(game.solutionData)
+                        initialBoard = Game.unflatten(game.initialBoardData)
+                        notes = Array(repeating: Array(repeating: Set<Int>(), count: SudokuGame.size), count: SudokuGame.size)
+                        hints = Game.unflatten(game.hintsData)
+                        
+                        if let difficulty = Difficulty(rawValue: game.difficulty) {
+                            currentDifficulty = difficulty
+                        }
+                        elapsedTime = game.elapsedTime
+                        gameStartDate = game.startDate
+                        mistakes = game.mistakes
+                        isDailyChallenge = game.isDailyChallenge
+                        dailyChallengeDate = game.dailyChallengeDate
+                        
+                        // Clear UI state
+                        selectedCell = nil
+                        highlightedNumber = nil
+                        isPencilMode = false
+                        undoStack.removeAll()
+                        redoStack.removeAll()
+                        
+                        // Set completion flags
+                        isComplete = true
+                        showConfetti = true
+                        hasInProgressGame = false
+                        currentGameID = nil
+                        stopTimer()
+                    }
                 }
                 
-                logger.info(self, "Game reloaded from CloudKit (paused: \(isPaused))")
+                // After detecting completion, check if there's a NEW game from another device
+                // (The other device may have already started a new game)
+                logger.info(self, "Checking for new games after completion...")
+                if let newGame = await persistenceService.syncInProgressGameFromCloudKit() {
+                    // There's a new game - load it immediately
+                    await MainActor.run {
+                        logger.info(self, "New game detected after completion, loading it (gameID: \(newGame.gameID))")
+                        
+                        // Reset completion state since we're loading a new in-progress game
+                        isComplete = false
+                        showConfetti = false
+                        isMistakeLimitReached = false
+                        
+                        // Load the new game
+                        board = Game.unflatten(newGame.boardData)
+                        notes = Game.decodeNotes(newGame.notesData)
+                        solution = Game.unflatten(newGame.solutionData)
+                        initialBoard = Game.unflatten(newGame.initialBoardData)
+                        if let difficulty = Difficulty(rawValue: newGame.difficulty) {
+                            currentDifficulty = difficulty
+                        }
+                        elapsedTime = newGame.elapsedTime
+                        gameStartDate = newGame.startDate
+                        mistakes = newGame.mistakes
+                        hints = Game.unflatten(newGame.hintsData)
+                        isDailyChallenge = newGame.isDailyChallenge
+                        dailyChallengeDate = newGame.dailyChallengeDate
+                        hasInProgressGame = true
+                        currentGameID = newGame.gameID
+                        
+                        // Restore UI state
+                        if let row = newGame.selectedCellRow, let col = newGame.selectedCellCol {
+                            selectedCell = (row, col)
+                        } else {
+                            selectedCell = nil
+                        }
+                        highlightedNumber = newGame.highlightedNumber
+                        isPencilMode = newGame.isPencilMode
+                        
+                        // Update pause state
+                        isPaused = newGame.wasPaused
+                        
+                        // Restore undo/redo stacks
+                        undoStack = Game.decodeGameStateStack(newGame.undoStackData)
+                        redoStack = Game.decodeGameStateStack(newGame.redoStackData)
+                        
+                        // Manage timer
+                        if isPaused {
+                            stopTimer()
+                            logger.info(self, "New game is paused, timer stopped")
+                        } else {
+                            startTimer()
+                            logger.info(self, "New game is running, timer started")
+                        }
+                        
+                        logger.info(self, "New game loaded from CloudKit (paused: \(isPaused))")
+                    }
+                }
+            } else if let game = syncedGame {
+                // Game is still in progress - update UI with latest state
+                await MainActor.run {
+                    board = Game.unflatten(game.boardData)
+                    notes = Game.decodeNotes(game.notesData)
+                    solution = Game.unflatten(game.solutionData)
+                    initialBoard = Game.unflatten(game.initialBoardData)
+                    if let difficulty = Difficulty(rawValue: game.difficulty) {
+                        currentDifficulty = difficulty
+                    }
+                    elapsedTime = game.elapsedTime
+                    gameStartDate = game.startDate
+                    mistakes = game.mistakes
+                    hints = Game.unflatten(game.hintsData)
+                    isDailyChallenge = game.isDailyChallenge
+                    dailyChallengeDate = game.dailyChallengeDate
+                    hasInProgressGame = true
+                    currentGameID = game.gameID
+                    
+                    // Restore UI state
+                    if let row = game.selectedCellRow, let col = game.selectedCellCol {
+                        selectedCell = (row, col)
+                    } else {
+                        selectedCell = nil
+                    }
+                    highlightedNumber = game.highlightedNumber
+                    isPencilMode = game.isPencilMode
+                    
+                    // Update pause state
+                    let wasPreviouslyPaused = isPaused
+                    isPaused = game.wasPaused
+                    
+                    if wasPreviouslyPaused != isPaused {
+                        logger.info(self, "Pause state changed: \(wasPreviouslyPaused) -> \(isPaused)")
+                    }
+                    
+                    // Restore undo/redo stacks
+                    undoStack = Game.decodeGameStateStack(game.undoStackData)
+                    redoStack = Game.decodeGameStateStack(game.redoStackData)
+                    
+                    // Manage timer based on pause state
+                    if isPaused {
+                        stopTimer()
+                        logger.info(self, "Game is paused, timer stopped")
+                    } else if !isComplete && !isMistakeLimitReached {
+                        startTimer()
+                        logger.info(self, "Game is running, timer started")
+                    }
+                    
+                    logger.info(self, "Game reloaded from CloudKit (paused: \(isPaused))")
+                }
+            } else {
+                // Game not found in CloudKit - it was deleted or doesn't exist
+                await MainActor.run {
+                    logger.info(self, "Current game not found in CloudKit (gameID: \(gameID))")
+                    hasInProgressGame = false
+                    currentGameID = nil
+                }
             }
         } else {
-            // No game in CloudKit - could mean it was completed/deleted on another device
-            await MainActor.run {
-                hasInProgressGame = false
-                currentGameID = nil
-                logger.info(self, "No in-progress game found in CloudKit")
+            // No current game - look for any in-progress games
+            logger.info(self, "No current game, checking for any in-progress games")
+            if let freshSavedGame = await persistenceService.syncInProgressGameFromCloudKit() {
+                // Found an in-progress game - load it
+                await MainActor.run {
+                    // Reset completion state since we're loading a new in-progress game
+                    isComplete = false
+                    showConfetti = false
+                    isMistakeLimitReached = false
+                    
+                    board = Game.unflatten(freshSavedGame.boardData)
+                    notes = Game.decodeNotes(freshSavedGame.notesData)
+                    solution = Game.unflatten(freshSavedGame.solutionData)
+                    initialBoard = Game.unflatten(freshSavedGame.initialBoardData)
+                    if let difficulty = Difficulty(rawValue: freshSavedGame.difficulty) {
+                        currentDifficulty = difficulty
+                    }
+                    elapsedTime = freshSavedGame.elapsedTime
+                    gameStartDate = freshSavedGame.startDate
+                    mistakes = freshSavedGame.mistakes
+                    hints = Game.unflatten(freshSavedGame.hintsData)
+                    isDailyChallenge = freshSavedGame.isDailyChallenge
+                    dailyChallengeDate = freshSavedGame.dailyChallengeDate
+                    hasInProgressGame = true
+                    currentGameID = freshSavedGame.gameID
+                    
+                    // Restore UI state
+                    if let row = freshSavedGame.selectedCellRow, let col = freshSavedGame.selectedCellCol {
+                        selectedCell = (row, col)
+                    } else {
+                        selectedCell = nil
+                    }
+                    highlightedNumber = freshSavedGame.highlightedNumber
+                    isPencilMode = freshSavedGame.isPencilMode
+                    
+                    // Update pause state
+                    let wasPreviouslyPaused = isPaused
+                    isPaused = freshSavedGame.wasPaused
+                    
+                    if wasPreviouslyPaused != isPaused {
+                        logger.info(self, "Pause state changed: \(wasPreviouslyPaused) -> \(isPaused)")
+                    }
+                    
+                    // Restore undo/redo stacks
+                    undoStack = Game.decodeGameStateStack(freshSavedGame.undoStackData)
+                    redoStack = Game.decodeGameStateStack(freshSavedGame.redoStackData)
+                    
+                    // Manage timer based on pause state
+                    if isPaused {
+                        stopTimer()
+                        logger.info(self, "Game is paused, timer stopped")
+                    } else if !isComplete && !isMistakeLimitReached {
+                        startTimer()
+                        logger.info(self, "Game is running, timer started")
+                    }
+                    
+                    logger.info(self, "Game reloaded from CloudKit (paused: \(isPaused))")
+                }
+            } else {
+                // No in-progress games found
+                await MainActor.run {
+                    hasInProgressGame = false
+                    logger.info(self, "No in-progress game found in CloudKit")
+                }
             }
         }
         
@@ -331,7 +500,7 @@ class SudokuGame: ObservableObject {
             }
         }
         
-        // Download completed games from CloudKit
+        // Download completed games from CloudKit (for game history)
         await persistenceService.syncCompletedGamesFromCloudKit()
     }
     
