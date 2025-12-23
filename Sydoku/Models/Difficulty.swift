@@ -27,7 +27,6 @@ enum Difficulty: String, Codable, CaseIterable, Hashable {
     /// - Easy: 40 clues
     /// - Medium: 32 clues
     /// - Hard: 26 clues
-    /// - Expert: 17 clues
     var numberOfClues: Int {
         switch self {
         case .easy: return 36

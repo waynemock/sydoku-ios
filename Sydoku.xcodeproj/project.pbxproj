@@ -7,8 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B03101002EF97BD300BB8D92 /* ARCHITECTURE.md in Resources */ = {isa = PBXBuildFile; fileRef = B03100F02EF97BD300BB8D92 /* ARCHITECTURE.md */; };
 		B04C34F72EEF773000F59C4F /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = B04C34F62EEF773000F59C4F /* LICENSE */; };
 		B04C34F92EEF7B8000F59C4F /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = B04C34F82EEF7B8000F59C4F /* README.md */; };
+		B0E5DCDE2EF4F947008E8106 /* CloudKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B0E5DCDD2EF4F947008E8106 /* CloudKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,11 +31,13 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B03100F02EF97BD300BB8D92 /* ARCHITECTURE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ARCHITECTURE.md; sourceTree = "<group>"; };
 		B04C34F62EEF773000F59C4F /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = "<group>"; };
 		B04C34F82EEF7B8000F59C4F /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		B0C279F72EEF2D9000D4B294 /* Sydoku.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Sydoku.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0C27A082EEF2D9100D4B294 /* SydokuTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SydokuTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B0C27A122EEF2D9100D4B294 /* SydokuUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SydokuUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B0E5DCDD2EF4F947008E8106 /* CloudKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CloudKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.2.sdk/System/Library/Frameworks/CloudKit.framework; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -65,6 +69,11 @@
 			path = SydokuUITests;
 			sourceTree = "<group>";
 		};
+		B0E5DCF12EF6E241008E8106 /* Claudes Musing */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Claudes Musing";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -72,6 +81,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B0E5DCDE2EF4F947008E8106 /* CloudKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -95,11 +105,14 @@
 		B0C279EE2EEF2D9000D4B294 = {
 			isa = PBXGroup;
 			children = (
-				B04C34F62EEF773000F59C4F /* LICENSE */,
 				B04C34F82EEF7B8000F59C4F /* README.md */,
+				B03100F02EF97BD300BB8D92 /* ARCHITECTURE.md */,
+				B04C34F62EEF773000F59C4F /* LICENSE */,
+				B0E5DCF12EF6E241008E8106 /* Claudes Musing */,
 				B08F476A2EEFBEAD00C13E1B /* Sydoku */,
 				B0C27A0B2EEF2D9100D4B294 /* SydokuTests */,
 				B0C27A152EEF2D9100D4B294 /* SydokuUITests */,
+				B0E5DCDC2EF4F947008E8106 /* Frameworks */,
 				B0C279F82EEF2D9000D4B294 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -112,6 +125,14 @@
 				B0C27A122EEF2D9100D4B294 /* SydokuUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		B0E5DCDC2EF4F947008E8106 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				B0E5DCDD2EF4F947008E8106 /* CloudKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -131,6 +152,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				B08F476A2EEFBEAD00C13E1B /* Sydoku */,
+				B0E5DCF12EF6E241008E8106 /* Claudes Musing */,
 			);
 			name = Sydoku;
 			packageProductDependencies = (
@@ -235,6 +257,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B04C34F92EEF7B8000F59C4F /* README.md in Resources */,
+				B03101002EF97BD300BB8D92 /* ARCHITECTURE.md in Resources */,
 				B04C34F72EEF773000F59C4F /* LICENSE in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -298,6 +321,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Sydoku/Sydoku.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PXZ9H8P4AQ;
@@ -331,6 +355,7 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -346,6 +371,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Sydoku/Sydoku.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = PXZ9H8P4AQ;
@@ -379,6 +405,7 @@
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;

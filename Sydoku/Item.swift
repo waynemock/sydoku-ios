@@ -15,7 +15,7 @@ import SwiftData
 @Model
 final class Item {
     /// The timestamp when this item was created or last modified.
-    var timestamp: Date
+    var timestamp: Date = Date()
     
     /// Creates a new item with the specified timestamp.
     ///

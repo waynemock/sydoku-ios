@@ -4,27 +4,33 @@ import SwiftUI
 struct MenuButtonView: View {
     @ObservedObject var game: SudokuGame
     let theme: Theme
+    
+    @Binding var showingHistory: Bool
     @Binding var showingStats: Bool
     @Binding var showingSettings: Bool
     @Binding var showingAbout: Bool
     @Binding var showingErrorCheckingToast: Bool
+    @Binding var showingCloudKitInfo: Bool
+    
+    /// The shared CloudKit status manager from the app environment.
+    @EnvironmentObject private var cloudKitStatus: CloudKitStatus
     
     var body: some View {
         Menu {
             Button(action: { game.giveHint() }) {
                 Label("Show Hint", systemImage: "lightbulb")
             }
-            .disabled(game.isGenerating || game.isComplete || game.isPaused || game.isGameOver)
+            .disabled(game.isGenerating || game.isComplete || game.isPaused || game.isMistakeLimitReached)
             
             Button(action: { game.autoFillNotes() }) {
                 Label("Auto Notes", systemImage: "wand.and.stars")
             }
-            .disabled(game.isGenerating || game.isPaused || game.isGameOver)
+            .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached)
             
             Button(action: { game.clearAllNotes() }) {
                 Label("Clear Notes", systemImage: "trash")
             }
-            .disabled(game.isGenerating || game.isPaused || game.isGameOver)
+            .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached)
 
             Divider()
             
@@ -42,12 +48,20 @@ struct MenuButtonView: View {
             
             Divider()
             
+            Button(action: { showingHistory = true }) {
+                Label("Game History", systemImage: "fossil.shell.fill")
+            }
+            
             Button(action: { showingStats = true }) {
                 Label("Statistics", systemImage: "chart.bar.fill")
             }
-            
+
             Button(action: { showingSettings = true }) {
                 Label("Settings", systemImage: "gearshape.fill")
+            }
+            
+            Button(action: { showingCloudKitInfo = true }) {
+                Label("iCloud Sync", systemImage: cloudKitStatus.isAvailable ? "icloud.fill" : "icloud.slash")
             }
             
             Divider()

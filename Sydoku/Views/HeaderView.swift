@@ -1,4 +1,5 @@
 import SwiftUI
+internal import CloudKit
 
 /// The header section containing app title, timer, and action buttons.
 ///
@@ -14,8 +15,8 @@ struct HeaderView: View {
     /// Binding to show/hide the new game picker.
     @Binding var showingNewGamePicker: Bool
     
-    /// Binding to show/hide the continue alert.
-    @Binding var showingContinueAlert: Bool
+    /// Binding to show/hide game history
+    @Binding var showHistory: Bool
     
     /// Binding to show/hide the statistics sheet.
     @Binding var showingStats: Bool
@@ -29,16 +30,40 @@ struct HeaderView: View {
     /// Binding to show/hide the error checking toast.
     @Binding var showingErrorCheckingToast: Bool
     
-    /// Environment horizontal size class to detect iPhone vs iPad.
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    /// Binding to show/hide the CloudKit info sheet.
+    @Binding var showingCloudKitInfo: Bool
+    
+    /// The shared CloudKit status manager from the app environment.
+    @EnvironmentObject private var cloudKitStatus: CloudKitStatus
+    
+    @State private var isShowingCloudKitButton = false
+    @State private var pulseAnimation = false
+    
+    /// Creates a header view with the specified game, theme, and bindings.
+    init(
+        game: SudokuGame,
+        theme: Theme,
+        showingNewGamePicker: Binding<Bool>,
+        showingHistory: Binding<Bool>,
+        showingStats: Binding<Bool>,
+        showingSettings: Binding<Bool>,
+        showingAbout: Binding<Bool>,
+        showingErrorCheckingToast: Binding<Bool>,
+        showingCloudKitInfo: Binding<Bool>
+    ) {
+        self.game = game
+        self.theme = theme
+        self._showingNewGamePicker = showingNewGamePicker
+        self._showHistory = showingHistory
+        self._showingStats = showingStats
+        self._showingSettings = showingSettings
+        self._showingAbout = showingAbout
+        self._showingErrorCheckingToast = showingErrorCheckingToast
+        self._showingCloudKitInfo = showingCloudKitInfo
+    }
     
     var body: some View {
         ZStack {
-            // Centered timer (only on iPad)
-            if horizontalSizeClass == .regular {
-                TimerButtonView(game: game, theme: theme)
-            }
-            
             // Left and right content
             HStack {
                 // Left side: Title and puzzle info
@@ -46,16 +71,15 @@ struct HeaderView: View {
                     HStack(spacing: 8) {
                         Text("Sydoku")
                             .foregroundColor(theme.primaryText)
-                            .font(.custom("Papyrus", size: 34))
+                            .font(.app(size: 34))
                             .fontWeight(.bold)
                     }
                     
                     // Puzzle type and difficulty
-                    if !game.isGenerating && (game.hasSavedGame || !game.initialBoard.allSatisfy({ $0.allSatisfy({ $0 == 0 }) })) {
+                    if !game.isGenerating && (game.hasInProgressGame || !game.initialBoard.allSatisfy({ $0.allSatisfy({ $0 == 0 }) })) {
                         Text(game.isDailyChallenge ? "Daily Challenge • \(game.difficulty.name)" : game.difficulty.name)
-                            .font(.subheadline)
+                            .font(.appSubheadline)
                             .foregroundColor(theme.secondaryText)
-                            .offset(y: -4)
                     }
                 }
                 
@@ -65,18 +89,9 @@ struct HeaderView: View {
                 HStack(spacing: 12) {
                     // New game button
                     Button(action: {
-                        // Check if we're at launch with a saved game
-                        let isAtLaunch = game.initialBoard.allSatisfy({ $0.allSatisfy({ $0 == 0 }) })
-                        
+                        // Always show new game picker - no longer show continue alert
                         game.stopTimer()
-                        
-                        if isAtLaunch && game.hasSavedGame {
-                            // At launch - show continue alert
-                            showingContinueAlert = true
-                        } else {
-                            // Mid-game or no saved game - go directly to new game picker
-                            showingNewGamePicker = true
-                        }
+                        showingNewGamePicker = true
                     }) {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 40))
@@ -90,15 +105,71 @@ struct HeaderView: View {
                     MenuButtonView(
                         game: game,
                         theme: theme,
+                        showingHistory: $showHistory,
                         showingStats: $showingStats,
                         showingSettings: $showingSettings,
                         showingAbout: $showingAbout,
-                        showingErrorCheckingToast: $showingErrorCheckingToast
+                        showingErrorCheckingToast: $showingErrorCheckingToast,
+                        showingCloudKitInfo: $showingCloudKitInfo
                     )
+                    
+                    // iCloud status indicator
+                    if isShowingCloudKitButton {
+                        Button(action: { showingCloudKitInfo = true }) {
+                            ZStack {
+                                // Animated pulse background for attention
+                                Circle()
+                                    .fill(theme.primaryAccent.opacity(0.2))
+                                    .frame(width: 44, height: 44)
+                                    .scaleEffect(pulseAnimation ? 1.2 : 1.0)
+                                    .opacity(pulseAnimation ? 0 : 1)
+                                
+                                Image(systemName: "icloud.slash.fill")
+                                    .font(.system(size: 22))
+                                    .foregroundColor(theme.primaryAccent)
+                                
+                                // Small badge indicator
+                                Circle()
+                                    .fill(Color.red)
+                                    .frame(width: 10, height: 10)
+                                    .offset(x: 15, y: -15)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("iCloud not connected")
+                        .accessibilityHint("Tap to learn how to enable iCloud sync")
+                    }
+                    
                 }
             }
         }
         .padding(.horizontal)
         .padding(.top)
+        .onAppear {
+            if !UserDefaults.standard.isSkipCloudKitCheck {
+                cloudKitStatus.initialize() { status in
+                    isShowingCloudKitButton = status != .available && !UserDefaults.standard.isSkipCloudKitCheck
+                    
+                    // Start pulse animation when button appears
+                    if isShowingCloudKitButton {
+                        startPulseAnimation()
+                    }
+                }
+            }
+        }
+        .onChange(of: showingCloudKitInfo) { oldValue, newValue in
+            // Hide the CloudKit button if user chose to permanently dismiss
+            if !newValue && UserDefaults.standard.isSkipCloudKitCheck && isShowingCloudKitButton {
+                isShowingCloudKitButton = false
+            }
+        }
+        
+    }
+    
+    /// Starts a repeating pulse animation to draw attention to the iCloud button.
+    private func startPulseAnimation() {
+        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: false)) {
+            pulseAnimation = true
+        }
     }
 }

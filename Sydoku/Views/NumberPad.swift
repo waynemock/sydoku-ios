@@ -25,6 +25,7 @@ struct NumberPad: View {
                         action: {
                             game.setNumber(num)
                             game.highlightedNumber = num
+                            game.saveUIState()
                         }
                     )
                 }
@@ -41,6 +42,7 @@ struct NumberPad: View {
                         action: {
                             game.setNumber(num)
                             game.highlightedNumber = num
+                            game.saveUIState()
                         }
                     )
                 }
@@ -49,6 +51,7 @@ struct NumberPad: View {
                 Button(action: {
                     game.clearCell()
                     game.highlightedNumber = nil
+                    game.saveUIState()
                 }) {
                     Image(systemName: "delete.backward.fill")
                         .font(.title2.weight(.semibold))
@@ -72,6 +75,7 @@ struct NumberPad: View {
         }
         .padding()
         .frame(maxWidth: 600)  // Limit to portrait-like width
+        .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached)
     }
 }
 
@@ -99,12 +103,14 @@ struct NumberButton: View {
         Button(action: action) {
             VStack(spacing: 2) {
                 Text("\(number)")
-                    .font(.title2.weight(.bold))
+                    .font(.appTitle2)
+                    .fontWeight(.bold)
                     .foregroundColor(.white)
                 if count > 0 {
                     // Show usage count
                     Text("\(count)/9")
-                        .font(.caption2.weight(.medium))
+                        .font(.appCaption2)
+                        .fontWeight(.medium)
                         .foregroundColor(.white.opacity(0.8))
                 }
             }

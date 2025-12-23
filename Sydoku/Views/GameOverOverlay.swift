@@ -41,15 +41,16 @@ struct GameOverOverlay: View {
                     .rotationEffect(.degrees(isAnimating ? 0 : -180))
                 
                 Text("Game Over")
-                    .font(.title.weight(.bold))
+                    .font(.appTitle)
+                    .fontWeight(.bold)
                     .foregroundColor(theme.primaryText)
                 
                 Text("Too many mistakes!")
-                    .font(.headline)
+                    .font(.appHeadline)
                     .foregroundColor(theme.secondaryText)
                 
                 Text(game.mistakesText)
-                    .font(.system(.callout, design: .monospaced, weight: .medium))
+                    .font(.appMonospaced)
                     .foregroundColor(theme.errorColor)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
@@ -67,7 +68,8 @@ struct GameOverOverlay: View {
                         Image(systemName: "arrow.clockwise")
                         Text("Try Again")
                     }
-                    .font(.headline.weight(.semibold))
+                    .font(.appHeadline)
+                    .fontWeight(.semibold)
                     .foregroundColor(.white)
                     .padding(.horizontal, 28)
                     .padding(.vertical, 12)

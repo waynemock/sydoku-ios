@@ -15,17 +15,18 @@ struct TimerButtonView: View {
                     Image(systemName: game.isPaused ? "play.fill" : "pause.fill")
                         .foregroundColor(theme.primaryAccent)
                     Text(game.formattedTime)
-                        .font(.system(.body, design: .monospaced, weight: .medium))
+                        .font(.appMonospaced)
+                        .fontWeight(.medium)
                         .foregroundColor(theme.primaryAccent)
                 }
                 .padding(.horizontal, 12)
-                .frame(height: 44)
+                .frame(minHeight: 36)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
                         .fill(theme.primaryAccent.opacity(0.2))
                 )
             }
-            .disabled(game.isGenerating || game.isComplete || game.isGameOver)
+            .disabled(game.isGenerating || game.isComplete || game.isMistakeLimitReached)
             .buttonStyle(ScaleButtonStyle())
         }
     }

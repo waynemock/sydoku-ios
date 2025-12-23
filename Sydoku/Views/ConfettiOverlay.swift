@@ -1,11 +1,12 @@
 import SwiftUI
 
-/// A realistic confetti animation view inspired by iOS Messages.
+/// A realistic confetti animation view with explosion effect.
 ///
-/// Creates falling confetti pieces with various shapes, colors, rotation,
-/// and physics-based animation for a celebratory effect.
+/// Creates confetti that explodes upward from the bottom center, then floats
+/// down naturally with rotation and physics-based movement before fading away.
 struct ConfettiView: View {
     @State private var confettiPieces: [ConfettiPieceModel] = []
+    @State private var hasGenerated = false
     
     var body: some View {
         GeometryReader { geometry in
@@ -14,29 +15,74 @@ struct ConfettiView: View {
                     ConfettiPieceView(piece: piece)
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
             .onAppear {
-                generateConfetti(in: geometry.size)
+                if !hasGenerated {
+                    generateConfetti(in: geometry.size)
+                    hasGenerated = true
+                }
+            }
+            .task {
+                // Alternative trigger that works better with SwiftUI lifecycle
+                if confettiPieces.isEmpty {
+                    generateConfetti(in: geometry.size)
+                }
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
     }
     
-    /// Generates confetti pieces across the screen.
+    /// Generates confetti pieces that explode from the bottom center.
     private func generateConfetti(in size: CGSize) {
-        let pieceCount = 150
+        let pieceCount = 200 // Doubled from 100
+        let explosionPoint = CGPoint(x: size.width / 2, y: size.height - 100) // Start slightly above bottom
+        
+        // Calculate spread to be 10% wider than screen (55% on each side = 110% total)
+        let maxSpreadPercent: CGFloat = 0.55
+        let maxHorizontalSpread = size.width * maxSpreadPercent
         
         for i in 0..<pieceCount {
+            // Higher velocities for faster, more dramatic effect
+            let velocity: CGFloat
+            let rand = Double.random(in: 0...1)
+            if rand < 0.3 {
+                // 30% shoot very high
+                velocity = CGFloat.random(in: 1100...1500)
+            } else if rand < 0.7 {
+                // 40% medium-high (most visible)
+                velocity = CGFloat.random(in: 800...1100)
+            } else {
+                // 30% moderate
+                velocity = CGFloat.random(in: 600...800)
+            }
+            
+            // Start with mostly upward direction (-90° = straight up)
+            let baseAngle = -90.0 * .pi / 180
+            
+            // Add a horizontal deviation based on screen width
+            let avgPeakHeight: CGFloat = 900
+            let maxAngleDeviation = atan(maxHorizontalSpread / avgPeakHeight)
+            let angleDeviation = Double.random(in: -maxAngleDeviation...maxAngleDeviation)
+            
+            let angle = baseAngle + angleDeviation
+            
+            // Calculate initial velocity components
+            // Note: In iOS, Y increases downward, so negative Y velocity = upward motion
+            let velocityX = cos(angle) * velocity
+            let velocityY = sin(angle) * velocity // This will be negative (upward)
+            
             let piece = ConfettiPieceModel(
                 id: i,
-                x: CGFloat.random(in: 0...size.width),
-                y: -50,
+                startX: explosionPoint.x,
+                startY: explosionPoint.y,
+                velocityX: velocityX,
+                velocityY: velocityY,
                 shape: ConfettiShape.allCases.randomElement()!,
                 color: ConfettiColor.allCases.randomElement()!.color,
-                size: CGFloat.random(in: 8...16),
-                rotationSpeed: Double.random(in: -4...4),
-                fallSpeed: Double.random(in: 2...5),
-                swing: Double.random(in: -30...30),
-                screenHeight: size.height
+                size: CGFloat.random(in: 10...18),
+                rotationSpeed: Double.random(in: -10...10),
+                screenSize: size
             )
             confettiPieces.append(piece)
         }
@@ -46,23 +92,23 @@ struct ConfettiView: View {
 /// A single confetti piece with animation state.
 struct ConfettiPieceModel: Identifiable {
     let id: Int
-    let x: CGFloat
-    let y: CGFloat
+    let startX: CGFloat
+    let startY: CGFloat
+    let velocityX: CGFloat
+    let velocityY: CGFloat
     let shape: ConfettiShape
     let color: Color
     let size: CGFloat
     let rotationSpeed: Double
-    let fallSpeed: Double
-    let swing: Double
-    let screenHeight: CGFloat
+    let screenSize: CGSize
 }
 
-/// Individual confetti piece view with animation.
+/// Individual confetti piece view with physics-based animation.
 struct ConfettiPieceView: View {
     let piece: ConfettiPieceModel
     
-    @State private var offsetY: CGFloat = 0
     @State private var offsetX: CGFloat = 0
+    @State private var offsetY: CGFloat = 0
     @State private var rotation: Double = 0
     @State private var opacity: Double = 1
     
@@ -73,44 +119,61 @@ struct ConfettiPieceView: View {
             .fill(piece.color)
             .frame(width: width, height: height)
             .rotationEffect(Angle.degrees(rotation))
-            .offset(x: piece.x + offsetX, y: piece.y + offsetY)
+            .position(
+                x: piece.startX + offsetX,
+                y: piece.startY + offsetY
+            )
             .opacity(opacity)
             .onAppear {
                 animate()
             }
     }
     
-    /// Animates the confetti piece falling with rotation and swing.
+    /// Animates the confetti with explosion physics and floating fall.
     private func animate() {
-        // Rotation animation
+        // Faster rotation animation
         withAnimation(
-            .linear(duration: 1 / abs(piece.rotationSpeed))
+            .linear(duration: abs(1.0 / piece.rotationSpeed))
             .repeatForever(autoreverses: false)
         ) {
             rotation = piece.rotationSpeed > 0 ? 360 : -360
         }
         
-        // Falling animation with swing
-        let duration = Double(piece.screenHeight + 100) / (piece.fallSpeed * 100)
+        // Animation timing
+        let speedFactor = piece.velocityY / 1000.0 // Normalize to higher velocity
+        let launchDuration: Double = 0.6 * abs(speedFactor) // Quick launch
+        let fallDuration: Double = 2.0 + Double.random(in: 0...1.0) // Longer fall time
+        let fadeDuration: Double = 0.5 // Quick fade only at the end
         
-        withAnimation(
-            .linear(duration: duration)
-        ) {
-            offsetY = piece.screenHeight + 100
+        // Calculate peak position (where velocity becomes zero)
+        let gravity: CGFloat = 800
+        let peakY = -(piece.velocityY * piece.velocityY) / (2 * gravity)
+        let peakX = piece.velocityX * CGFloat(launchDuration)
+        
+        // Quick launch to peak
+        withAnimation(.easeOut(duration: launchDuration)) {
+            self.offsetX = peakX
+            self.offsetY = peakY
         }
         
-        // Swing animation (side-to-side motion)
-        withAnimation(
-            .easeInOut(duration: duration / 4)
-            .repeatForever(autoreverses: true)
-        ) {
-            offsetX = piece.swing
-        }
-        
-        // Fade out near the bottom
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration * 0.8) {
-            withAnimation(.easeOut(duration: duration * 0.2)) {
-                opacity = 0
+        // Fall back down with full opacity
+        DispatchQueue.main.asyncAfter(deadline: .now() + launchDuration) {
+            // Fall to varied positions
+            let finalY = CGFloat.random(in: -200...100)
+            // More horizontal drift for wider spread
+            let horizontalDrift = piece.velocityX * 0.2 * CGFloat(fallDuration)
+            let finalX = peakX + horizontalDrift
+            
+            withAnimation(.easeIn(duration: fallDuration)) {
+                self.offsetY = finalY
+                self.offsetX = finalX
+            }
+            
+            // Only start fading AFTER the confetti has stopped moving
+            DispatchQueue.main.asyncAfter(deadline: .now() + fallDuration) {
+                withAnimation(.easeOut(duration: fadeDuration)) {
+                    self.opacity = 0
+                }
             }
         }
     }
@@ -216,12 +279,72 @@ struct StarShape: Shape {
 
 // MARK: - Preview
 #Preview("Confetti Celebration") {
-    ZStack {
-        Color.black.opacity(0.3)
-            .ignoresSafeArea()
+    struct ConfettiPreviewWrapper: View {
+        @State private var showConfetti = false
+        @State private var confettiID = UUID()
         
-        ConfettiView()
+        var body: some View {
+            ZStack {
+                // Dark mode background
+                Color.black
+                    .ignoresSafeArea()
+                
+                // Sample game board or content
+                VStack {
+                    Text("Top of Screen")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                        .padding(.top, 50)
+                    
+                    Spacer()
+                    
+                    Text("Sudoku Complete!")
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                    
+                    Spacer()
+                    
+                    Button {
+                        showConfetti = true
+                        confettiID = UUID() // Force recreation of confetti
+                        // Reset after animation completes
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 5.5) {
+                            showConfetti = false
+                        }
+                    } label: {
+                        Text("Show Confetti 🎉")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 16)
+                            .background(
+                                Capsule()
+                                    .fill(Color.blue)
+                            )
+                    }
+                    .padding(.bottom, 60)
+                    
+                    Text("Bottom of Screen")
+                        .font(.caption)
+                        .foregroundStyle(.green)
+                        .padding(.bottom, 20)
+                }
+                
+                // Confetti overlay
+                if showConfetti {
+                    ConfettiView()
+                        .id(confettiID) // Force recreation with new ID
+                        .allowsHitTesting(false)
+                        .background(Color.red.opacity(0.1)) // Debug: see the confetti view bounds
+                }
+            }
+            .preferredColorScheme(.dark)
+        }
     }
+    
+    return ConfettiPreviewWrapper()
 }
 
 

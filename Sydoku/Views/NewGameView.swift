@@ -74,6 +74,15 @@ struct NewGameView: View {
                 .foregroundColor(theme.secondaryText)
                 .multilineTextAlignment(.center)
             
+            // Show info message if there's an in-progress game
+            if game.hasInProgressGame {
+                Text("Your current game will be saved in History")
+                    .font(.caption)
+                    .foregroundColor(theme.primaryAccent)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal)
+            }
+            
             // Difficulty buttons
             VStack(spacing: 12) {
                 ForEach(Difficulty.allCases, id: \.self) { difficulty in
@@ -83,19 +92,14 @@ struct NewGameView: View {
                         isCompleted: game.isDailyChallengeCompleted(for: difficulty),
                         theme: theme,
                         action: {
-                            if isDailyMode {
-                                game.generateDailyChallenge(difficulty: difficulty)
-                            } else {
-                                game.generatePuzzle(difficulty: difficulty)
-                            }
-                            isPresented = false
+                            startNewGame(difficulty: difficulty)
                         }
                     )
                 }
             }
             
             // Cancel button (only show if there's an active game)
-            if game.hasSavedGame || !game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
+            if game.hasInProgressGame || !game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
                 Button(action: {
                     game.startTimer()
                     isPresented = false
@@ -115,6 +119,16 @@ struct NewGameView: View {
                 .fill(theme.backgroundColor)
                 .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
         )
+    }
+    
+    /// Starts a new game with the specified difficulty.
+    private func startNewGame(difficulty: Difficulty) {
+        if isDailyMode {
+            game.generateDailyChallenge(difficulty: difficulty)
+        } else {
+            game.generatePuzzle(difficulty: difficulty)
+        }
+        isPresented = false
     }
 }
 
@@ -181,7 +195,7 @@ struct NewGamePicker: ViewModifier {
                             .ignoresSafeArea()
                             .onTapGesture {
                                 // Resume timer if dismissing with an active game
-                                if game.hasSavedGame || !game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
+                                if game.hasInProgressGame || !game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
                                     game.startTimer()
                                 }
                                 isPresented = false

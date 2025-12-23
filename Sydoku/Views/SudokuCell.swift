@@ -48,10 +48,9 @@ struct SudokuCell: View {
                 if value != 0 {
                     // Display the cell's value
                     Text("\(value)")
-                        .font(.custom("Papyrus", size: cellSize * 0.6))
+                        .font(.app(size: cellSize * 0.6))
                         .fontWeight(isInitial ? .bold : .semibold)
                         .foregroundStyle(textColor)
-                        .baselineOffset(-cellSize * 0.05)
                         .scaleEffect(isLastPlaced ? 1.3 : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isLastPlaced)
                         .shadow(color: hasConflict ? theme.errorColor.opacity(0.3) : Color.clear, radius: 4)
@@ -121,8 +120,12 @@ struct NotesGrid: View {
         // Scale font size proportionally to cell size
         // Base: 40pt cell = 8pt font, scale up from there
         let baseCellSize: CGFloat = 40
-        let baseFontSize: CGFloat = 8
-        return max(baseFontSize, (cellSize / baseCellSize) * baseFontSize)
+        let baseFontSize: CGFloat = 11
+        let scaledSize = max(baseFontSize, (cellSize / baseCellSize) * baseFontSize)
+        
+        // Cap the size to prevent notes from getting too large
+        // On iPad with large cells, keep notes reasonable
+        return min(scaledSize, 20)
     }
     
     var body: some View {
@@ -132,13 +135,14 @@ struct NotesGrid: View {
                     ForEach(1...3, id: \.self) { col in
                         let num = row * 3 + col
                         Text(notes.contains(num) ? "\(num)" : "")
-                            .font(.system(size: fontSize, weight: .medium))
+                            .font(.system(size: fontSize, weight: .black))
                             .foregroundColor(theme.secondaryText)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
+                .padding(-1)
             }
         }
-        .padding(2)
+        .padding(3)
     }
 }

@@ -147,9 +147,9 @@ struct Theme {
         primaryAccent.opacity(0.2)
     }
     
-    /// Color for hint cell background.
+    /// Color for hint cell background color.
     var hintCellColor: Color {
-        successColor.opacity(0.4)
+        Color.yellow.opacity(0.2)
     }
     
     /// Gradient for glass effects.
@@ -195,7 +195,6 @@ extension Theme {
     /// - Easy: Success color (green)
     /// - Medium: Warning color (orange)
     /// - Hard: Error color (red)
-    /// - Expert: Danger color (dark grey)
     func color(for difficulty: Difficulty) -> Color {
         switch difficulty {
         case .easy: return successColor
@@ -218,9 +217,9 @@ extension EnvironmentValues {
 /// Stores theme preferences for persistence.
 struct ThemePreference: Codable {
     var themeType: Theme.ThemeType
-    var preferredColorScheme: String // "light", "dark", or "system"
+    var preferredColorScheme: GameSettings.ColorSchemePreference
     
-    init(themeType: Theme.ThemeType = .blossom, preferredColorScheme: String = "dark") {
+    init(themeType: Theme.ThemeType = .blossom, preferredColorScheme: GameSettings.ColorSchemePreference = .dark) {
         self.themeType = themeType
         self.preferredColorScheme = preferredColorScheme
     }
