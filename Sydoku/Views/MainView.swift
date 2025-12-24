@@ -194,7 +194,7 @@ struct MainView: View {
                 SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
                 
                 // Footer with input controls, number pad and status indicators
-                FooterView(game: game, theme: theme)
+                FooterView(game: game, theme: theme, showingNewGamePicker: $showingNewGamePicker)
                 
                 Spacer()
             }
@@ -211,8 +211,12 @@ struct MainView: View {
         }
         .environment(\.theme, theme)
         .sheet(isPresented: $showingHistory) {
-            GameHistoryView()
-                .environment(\.theme, theme)
+            GameHistoryView(onResumeGame: { selectedGame in
+                loadGame(from: selectedGame)
+            }, onViewGame: { selectedGame in
+                loadGame(from: selectedGame)
+            })
+            .environment(\.theme, theme)
         }
         .sheet(isPresented: $showingStats) {
             StatisticsView(game: game)
@@ -242,12 +246,21 @@ struct MainView: View {
         )
         .newGamePicker(isPresented: $showingNewGamePicker, game: game, theme: theme)
         .onChange(of: game.hasInProgressGame) { _, hasInProgressGame in
-            // If a saved game is detected (e.g., from iCloud sync), dismiss the new game picker
+            // If a saved game is detected (e.g., from iCloud sync)
             if hasInProgressGame {
-                showingNewGamePicker = false
-                // Load the saved game if not already loaded
-                if !game.isDailyChallengeExpired && game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
-                    game.postLoadSetup()
+                // Only dismiss the new game picker if the board actually has content
+                if game.hasBoardBeenGenerated {
+                    showingNewGamePicker = false
+                } else {
+                    // Load the saved game if not already loaded
+                    if !game.isDailyChallengeExpired {
+                        game.postLoadSetup()
+                    }
+                }
+            } else {
+                // No game in progress - show the new game picker if board is empty
+                if !game.hasBoardBeenGenerated {
+                    showingNewGamePicker = true
                 }
             }
         }
@@ -278,7 +291,16 @@ struct MainView: View {
         let colorScheme = game.settings.preferredColorScheme.toColorScheme(system: systemColorScheme)
         theme = Theme(type: game.settings.themeType, colorScheme: colorScheme)
     }
-    
+
+    /// Loads a game
+    private func loadGame(from aGame: Game) {
+        // Load the selected game using the helper function
+        game.loadGame(from: aGame)
+
+        // Start the game (respects pause state)
+        game.postLoadSetup()
+    }
+
     /// Performs a CloudKit sync with timeout and loading UI.
     private func performSync() async {
         // Show loading overlay

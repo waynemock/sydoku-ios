@@ -19,6 +19,9 @@ struct FooterView: View {
     /// The current theme for styling.
     let theme: Theme
     
+    /// Binding to control showing the new game picker.
+    @Binding var showingNewGamePicker: Bool
+    
     var body: some View {
         if !game.isComplete {
             VStack {
@@ -26,7 +29,7 @@ struct FooterView: View {
                 InputControls(game: game, theme: theme)
                 
                 // Number Pad
-                NumberPad(game: game)
+                NumberPad(game: game, showingNewGamePicker: $showingNewGamePicker)
                 
                 // Mistakes and Timer, always reserve space for it
                 HStack(spacing: 16) {

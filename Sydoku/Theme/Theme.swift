@@ -139,12 +139,12 @@ struct Theme {
     
     /// Color for selected cell background.
     var selectedCellColor: Color {
-        primaryAccent.opacity(0.5)
+        primaryAccent.opacity(0.6)
     }
     
     /// Color for highlighted cell background.
     var highlightedCellColor: Color {
-        primaryAccent.opacity(0.2)
+        primaryAccent.opacity(0.3)
     }
     
     /// Color for hint cell background color.

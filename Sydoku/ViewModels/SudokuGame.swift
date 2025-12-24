@@ -19,7 +19,12 @@ class SudokuGame: ObservableObject {
     
     /// The initial puzzle state with given numbers (9x9 grid).
     @Published var initialBoard: [[Int]]
-    
+
+    /// Whether the board has been generated (at least one cell is non-zero).
+    var hasBoardBeenGenerated: Bool {
+        !initialBoard.allSatisfy { $0.allSatisfy { $0 == 0 } }
+    }
+
     /// The solution to the current puzzle (9x9 grid).
     @Published var solution: [[Int]]
     
@@ -107,10 +112,10 @@ class SudokuGame: ObservableObject {
     // MARK: - Private Properties
     
     /// Stack of previous game states for undo functionality.
-    private var undoStack: [GameState] = []
+    var undoStack: [GameState] = []
     
     /// Stack of undone game states for redo functionality.
-    private var redoStack: [GameState] = []
+    var redoStack: [GameState] = []
     
     /// Maximum number of undo steps to maintain.
     private let maxUndoSteps = 50
@@ -122,13 +127,13 @@ class SudokuGame: ObservableObject {
     private var saveDebounceTimer: Timer?
     
     /// The difficulty level of the current puzzle.
-    private var currentDifficulty: Difficulty = .medium
+    var currentDifficulty: Difficulty = .medium
     
     /// The date and time when the current game started.
-    private var gameStartDate = Date()
+    var gameStartDate = Date()
     
     /// The unique identifier for the current game (for tracking across saves).
-    private var currentGameID: String?
+    var currentGameID: String?
     
     /// Persistence service for SwiftData operations.
     private var persistenceService: PersistenceService?
@@ -265,35 +270,8 @@ class SudokuGame: ObservableObject {
                     await MainActor.run {
                         logger.info(self, "Current game was completed on another device")
                         
-                        // Load the completed board state
-                        board = Game.unflatten(game.boardData)
-                        solution = Game.unflatten(game.solutionData)
-                        initialBoard = Game.unflatten(game.initialBoardData)
-                        notes = Array(repeating: Array(repeating: Set<Int>(), count: SudokuGame.size), count: SudokuGame.size)
-                        hints = Game.unflatten(game.hintsData)
-                        
-                        if let difficulty = Difficulty(rawValue: game.difficulty) {
-                            currentDifficulty = difficulty
-                        }
-                        elapsedTime = game.elapsedTime
-                        gameStartDate = game.startDate
-                        mistakes = game.mistakes
-                        isDailyChallenge = game.isDailyChallenge
-                        dailyChallengeDate = game.dailyChallengeDate
-                        
-                        // Clear UI state
-                        selectedCell = nil
-                        highlightedNumber = nil
-                        isPencilMode = false
-                        undoStack.removeAll()
-                        redoStack.removeAll()
-                        
-                        // Set completion flags
-                        isComplete = true
-                        showConfetti = true
-                        hasInProgressGame = false
-                        currentGameID = nil
-                        stopTimer()
+                        // Load the completed board state (but clear notes since it's completed)
+                        loadGame(from: game, clearUIState: true)
                     }
                 }
                 
@@ -305,104 +283,17 @@ class SudokuGame: ObservableObject {
                     await MainActor.run {
                         logger.info(self, "New game detected after completion, loading it (gameID: \(newGame.gameID))")
                         
-                        // Reset completion state since we're loading a new in-progress game
-                        isComplete = false
-                        showConfetti = false
-                        isMistakeLimitReached = false
-                        
-                        // Load the new game
-                        board = Game.unflatten(newGame.boardData)
-                        notes = Game.decodeNotes(newGame.notesData)
-                        solution = Game.unflatten(newGame.solutionData)
-                        initialBoard = Game.unflatten(newGame.initialBoardData)
-                        if let difficulty = Difficulty(rawValue: newGame.difficulty) {
-                            currentDifficulty = difficulty
-                        }
-                        elapsedTime = newGame.elapsedTime
-                        gameStartDate = newGame.startDate
-                        mistakes = newGame.mistakes
-                        hints = Game.unflatten(newGame.hintsData)
-                        isDailyChallenge = newGame.isDailyChallenge
-                        dailyChallengeDate = newGame.dailyChallengeDate
-                        hasInProgressGame = true
-                        currentGameID = newGame.gameID
-                        
-                        // Restore UI state
-                        if let row = newGame.selectedCellRow, let col = newGame.selectedCellCol {
-                            selectedCell = (row, col)
-                        } else {
-                            selectedCell = nil
-                        }
-                        highlightedNumber = newGame.highlightedNumber
-                        isPencilMode = newGame.isPencilMode
-                        
-                        // Update pause state
-                        isPaused = newGame.wasPaused
-                        
-                        // Restore undo/redo stacks
-                        undoStack = Game.decodeGameStateStack(newGame.undoStackData)
-                        redoStack = Game.decodeGameStateStack(newGame.redoStackData)
-                        
-                        // Manage timer
-                        if isPaused {
-                            stopTimer()
-                            logger.info(self, "New game is paused, timer stopped")
-                        } else {
-                            startTimer()
-                            logger.info(self, "New game is running, timer started")
-                        }
-                        
+                        // Load the new in-progress game
+                        loadGame(from: newGame)
+
                         logger.info(self, "New game loaded from CloudKit (paused: \(isPaused))")
                     }
                 }
             } else if let game = syncedGame {
                 // Game is still in progress - update UI with latest state
                 await MainActor.run {
-                    board = Game.unflatten(game.boardData)
-                    notes = Game.decodeNotes(game.notesData)
-                    solution = Game.unflatten(game.solutionData)
-                    initialBoard = Game.unflatten(game.initialBoardData)
-                    if let difficulty = Difficulty(rawValue: game.difficulty) {
-                        currentDifficulty = difficulty
-                    }
-                    elapsedTime = game.elapsedTime
-                    gameStartDate = game.startDate
-                    mistakes = game.mistakes
-                    hints = Game.unflatten(game.hintsData)
-                    isDailyChallenge = game.isDailyChallenge
-                    dailyChallengeDate = game.dailyChallengeDate
-                    hasInProgressGame = true
-                    currentGameID = game.gameID
-                    
-                    // Restore UI state
-                    if let row = game.selectedCellRow, let col = game.selectedCellCol {
-                        selectedCell = (row, col)
-                    } else {
-                        selectedCell = nil
-                    }
-                    highlightedNumber = game.highlightedNumber
-                    isPencilMode = game.isPencilMode
-                    
-                    // Update pause state
-                    let wasPreviouslyPaused = isPaused
-                    isPaused = game.wasPaused
-                    
-                    if wasPreviouslyPaused != isPaused {
-                        logger.info(self, "Pause state changed: \(wasPreviouslyPaused) -> \(isPaused)")
-                    }
-                    
-                    // Restore undo/redo stacks
-                    undoStack = Game.decodeGameStateStack(game.undoStackData)
-                    redoStack = Game.decodeGameStateStack(game.redoStackData)
-                    
-                    // Manage timer based on pause state
-                    if isPaused {
-                        stopTimer()
-                        logger.info(self, "Game is paused, timer stopped")
-                    } else if !isComplete && !isMistakeLimitReached {
-                        startTimer()
-                        logger.info(self, "Game is running, timer started")
-                    }
+                    // Load the game state
+                    loadGame(from: game)
                     
                     logger.info(self, "Game reloaded from CloudKit (paused: \(isPaused))")
                 }
@@ -420,57 +311,10 @@ class SudokuGame: ObservableObject {
             if let freshSavedGame = await persistenceService.syncInProgressGameFromCloudKit() {
                 // Found an in-progress game - load it
                 await MainActor.run {
-                    // Reset completion state since we're loading a new in-progress game
-                    isComplete = false
-                    showConfetti = false
-                    isMistakeLimitReached = false
-                    
-                    board = Game.unflatten(freshSavedGame.boardData)
-                    notes = Game.decodeNotes(freshSavedGame.notesData)
-                    solution = Game.unflatten(freshSavedGame.solutionData)
-                    initialBoard = Game.unflatten(freshSavedGame.initialBoardData)
-                    if let difficulty = Difficulty(rawValue: freshSavedGame.difficulty) {
-                        currentDifficulty = difficulty
-                    }
-                    elapsedTime = freshSavedGame.elapsedTime
-                    gameStartDate = freshSavedGame.startDate
-                    mistakes = freshSavedGame.mistakes
-                    hints = Game.unflatten(freshSavedGame.hintsData)
-                    isDailyChallenge = freshSavedGame.isDailyChallenge
-                    dailyChallengeDate = freshSavedGame.dailyChallengeDate
-                    hasInProgressGame = true
-                    currentGameID = freshSavedGame.gameID
-                    
-                    // Restore UI state
-                    if let row = freshSavedGame.selectedCellRow, let col = freshSavedGame.selectedCellCol {
-                        selectedCell = (row, col)
-                    } else {
-                        selectedCell = nil
-                    }
-                    highlightedNumber = freshSavedGame.highlightedNumber
-                    isPencilMode = freshSavedGame.isPencilMode
-                    
-                    // Update pause state
-                    let wasPreviouslyPaused = isPaused
-                    isPaused = freshSavedGame.wasPaused
-                    
-                    if wasPreviouslyPaused != isPaused {
-                        logger.info(self, "Pause state changed: \(wasPreviouslyPaused) -> \(isPaused)")
-                    }
-                    
-                    // Restore undo/redo stacks
-                    undoStack = Game.decodeGameStateStack(freshSavedGame.undoStackData)
-                    redoStack = Game.decodeGameStateStack(freshSavedGame.redoStackData)
-                    
-                    // Manage timer based on pause state
-                    if isPaused {
-                        stopTimer()
-                        logger.info(self, "Game is paused, timer stopped")
-                    } else if !isComplete && !isMistakeLimitReached {
-                        startTimer()
-                        logger.info(self, "Game is running, timer started")
-                    }
-                    
+
+                    // Load the in-progress game
+                    loadGame(from: freshSavedGame)
+
                     logger.info(self, "Game reloaded from CloudKit (paused: \(isPaused))")
                 }
             } else {
@@ -518,7 +362,7 @@ class SudokuGame: ObservableObject {
     /// Starts the game timer, updating elapsed time every second.
     func startTimer() {
         // Don't start timer if no puzzle exists yet
-        guard !solution.isEmpty && !solution.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) else {
+        guard !solution.isEmpty && !hasBoardBeenGenerated else {
             return
         }
         
@@ -587,6 +431,82 @@ class SudokuGame: ObservableObject {
     
     // MARK: - Save/Load Game
     
+    /// Loads game state from a Game model into the current game instance.
+    ///
+    /// This helper consolidates all the logic for restoring a saved game,
+    /// including board state, UI state, and undo/redo stacks.
+    ///
+    /// - Parameters:
+    ///   - game: The saved game to load.
+    ///   - resetCompletionState: Whether to reset completion flags (for resuming in-progress games).
+    func loadGame(from game: Game, clearUIState: Bool = false) {
+        let wasPreviouslyPaused = isPaused
+
+        // Load board state
+        board = Game.unflatten(game.boardData)
+        notes = Game.decodeNotes(game.notesData)
+        solution = Game.unflatten(game.solutionData)
+        initialBoard = Game.unflatten(game.initialBoardData)
+        hints = Game.unflatten(game.hintsData)
+        
+        // Set difficulty
+        if let difficulty = Difficulty(rawValue: game.difficulty) {
+            currentDifficulty = difficulty
+        }
+        
+        // Restore game state
+        elapsedTime = game.elapsedTime
+        gameStartDate = game.startDate
+        mistakes = game.mistakes
+        isDailyChallenge = game.isDailyChallenge
+        dailyChallengeDate = game.dailyChallengeDate
+        hasInProgressGame = true
+        currentGameID = game.gameID
+        
+        // Restore UI state
+        if let row = game.selectedCellRow, let col = game.selectedCellCol {
+            selectedCell = (row, col)
+        } else {
+            selectedCell = nil
+        }
+        highlightedNumber = game.highlightedNumber
+        isPencilMode = game.isPencilMode
+        isPaused = game.wasPaused
+        
+        // Restore undo/redo stacks
+        undoStack = Game.decodeGameStateStack(game.undoStackData)
+        redoStack = Game.decodeGameStateStack(game.redoStackData)
+
+        isComplete = game.isCompleted
+        showConfetti = game.isCompleted
+        isMistakeLimitReached = game.mistakes >= settings.mistakeLimit
+
+        // Clear UI state
+        if clearUIState {
+            selectedCell = nil
+            highlightedNumber = nil
+            isPencilMode = false
+        }
+
+        currentGameID = isComplete ? nil : game.gameID
+
+        // Manage timer based on complete and pause states
+        if isComplete {
+            stopTimer()
+            logger.info(self, "Completed game, ensure timer stopped")
+        } else if isPaused {
+            stopTimer()
+            logger.info(self, "New game is paused, timer stopped")
+        } else {
+            startTimer()
+            logger.info(self, "New game is running, timer started")
+        }
+
+        if wasPreviouslyPaused != isPaused {
+            logger.info(self, "Pause state changed: \(wasPreviouslyPaused) -> \(isPaused)")
+        }
+    }
+
     /// Saves UI state changes (selectedCell, highlightedNumber, isPencilMode).
     ///
     /// This is a lighter-weight save that uses debouncing to avoid excessive saves
@@ -657,37 +577,7 @@ class SudokuGame: ObservableObject {
     
     private func checkForSavedGame() {
         if let savedGame = persistenceService?.fetchInProgressGame() {
-            board = Game.unflatten(savedGame.boardData)
-            notes = Game.decodeNotes(savedGame.notesData)
-            solution = Game.unflatten(savedGame.solutionData)
-            initialBoard = Game.unflatten(savedGame.initialBoardData)
-            if let difficulty = Difficulty(rawValue: savedGame.difficulty) {
-                currentDifficulty = difficulty
-            }
-            elapsedTime = savedGame.elapsedTime
-            gameStartDate = savedGame.startDate
-            mistakes = savedGame.mistakes
-            hints = Game.unflatten(savedGame.hintsData)
-            isDailyChallenge = savedGame.isDailyChallenge
-            dailyChallengeDate = savedGame.dailyChallengeDate
-            
-            // Store the game ID for future saves
-            currentGameID = savedGame.gameID
-            
-            // Restore UI state for seamless resume
-            if let row = savedGame.selectedCellRow, let col = savedGame.selectedCellCol {
-                selectedCell = (row, col)
-            } else {
-                selectedCell = nil
-            }
-            highlightedNumber = savedGame.highlightedNumber
-            isPencilMode = savedGame.isPencilMode
-            isPaused = savedGame.wasPaused
-            
-            // Restore undo/redo stacks
-            undoStack = Game.decodeGameStateStack(savedGame.undoStackData)
-            redoStack = Game.decodeGameStateStack(savedGame.redoStackData)
-            
+            loadGame(from: savedGame)
             hasInProgressGame = true
         } else {
             hasInProgressGame = false
