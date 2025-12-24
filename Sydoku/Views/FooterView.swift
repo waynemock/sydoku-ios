@@ -23,23 +23,24 @@ struct FooterView: View {
     @Binding var showingNewGamePicker: Bool
     
     var body: some View {
-        if !game.isComplete {
-            VStack {
+        VStack {
+            if (!game.isComplete) {
                 // Input controls (Pen/Notes/Undo/Redo) - always above number pad
                 InputControls(game: game, theme: theme)
-                
+
                 // Number Pad
                 NumberPad(game: game, showingNewGamePicker: $showingNewGamePicker)
-                
-                // Mistakes and Timer, always reserve space for it
-                HStack(spacing: 16) {
-                    MistakesCounter(game: game, theme: theme)
-                    Spacer()
-                    TimerButtonView(game: game, theme: theme)
-                }
-                .padding(.horizontal)
-                .frame(maxWidth: 600, minHeight: 36)  // Limit to portrait-like width
             }
+
+
+            // Mistakes and Timer, always reserve space for it
+            HStack(spacing: 16) {
+                MistakesCounter(game: game, theme: theme)
+                Spacer()
+                TimerButtonView(game: game, theme: theme)
+            }
+            .padding(.horizontal)
+            .frame(maxWidth: 600, minHeight: 36)  // Limit to portrait-like width
         }
     }
 }

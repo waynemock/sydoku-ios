@@ -84,8 +84,6 @@ struct MainView: View {
                         if game.hasInProgressGame {
                             if game.isDailyChallengeExpired {
                                 showingExpiredDailyAlert = true
-                            } else {
-                                game.postLoadSetup()
                             }
                         } else {
                             showingNewGamePicker = true
@@ -117,9 +115,6 @@ struct MainView: View {
                         // Check if it's an expired daily challenge
                         if game.isDailyChallengeExpired {
                             showingExpiredDailyAlert = true
-                        } else {
-                            // Automatically load the saved game (no alert needed)
-                            game.postLoadSetup()
                         }
                     } else {
                         // No saved game - show the new game picker so user can choose difficulty
@@ -203,7 +198,6 @@ struct MainView: View {
             // Confetti overlay
             if game.showConfetti {
                 ConfettiView()
-                    .allowsHitTesting(false)
             }
         }
         .toast(isPresented: $showingErrorCheckingToast, edge: .bottom) {
@@ -251,11 +245,6 @@ struct MainView: View {
                 // Only dismiss the new game picker if the board actually has content
                 if game.hasBoardBeenGenerated {
                     showingNewGamePicker = false
-                } else {
-                    // Load the saved game if not already loaded
-                    if !game.isDailyChallengeExpired {
-                        game.postLoadSetup()
-                    }
                 }
             } else {
                 // No game in progress - show the new game picker if board is empty
@@ -296,9 +285,6 @@ struct MainView: View {
     private func loadGame(from aGame: Game) {
         // Load the selected game using the helper function
         game.loadGame(from: aGame)
-
-        // Start the game (respects pause state)
-        game.postLoadSetup()
     }
 
     /// Performs a CloudKit sync with timeout and loading UI.

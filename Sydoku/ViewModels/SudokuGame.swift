@@ -455,14 +455,27 @@ class SudokuGame: ObservableObject {
         }
         
         // Restore game state
+        currentGameID = game.gameID
         elapsedTime = game.elapsedTime
         gameStartDate = game.startDate
         mistakes = game.mistakes
         isDailyChallenge = game.isDailyChallenge
         dailyChallengeDate = game.dailyChallengeDate
-        hasInProgressGame = true
-        currentGameID = game.gameID
+        isComplete = game.isCompleted
         
+        showConfetti = false
+        if game.isCompleted {
+            // Reset confetti briefly to trigger animation for each completed game
+            // Use a tiny delay to ensure the change is detected
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                self.showConfetti = true
+            }
+        }
+        
+        hasInProgressGame = !isComplete
+        isMistakeLimitReached = settings.mistakeLimit > 0 && game.mistakes >= settings.mistakeLimit
+        hasError = isComplete && checkErrors()
+
         // Restore UI state
         if let row = game.selectedCellRow, let col = game.selectedCellCol {
             selectedCell = (row, col)
@@ -477,9 +490,6 @@ class SudokuGame: ObservableObject {
         undoStack = Game.decodeGameStateStack(game.undoStackData)
         redoStack = Game.decodeGameStateStack(game.redoStackData)
 
-        isComplete = game.isCompleted
-        showConfetti = game.isCompleted
-        isMistakeLimitReached = game.mistakes >= settings.mistakeLimit
 
         // Clear UI state
         if clearUIState {
@@ -562,17 +572,6 @@ class SudokuGame: ObservableObject {
         )
         hasInProgressGame = true
         logger.debug(self, "Game saved (isPaused: \(isPaused), time: \(Int(elapsedTime))s)")
-    }
-    
-    func postLoadSetup() {
-        isComplete = false
-        hasError = false
-        isMistakeLimitReached = false
-        
-        // Only start timer if the game wasn't paused when saved
-        if !isPaused {
-            startTimer()
-        }
     }
     
     private func checkForSavedGame() {
@@ -1008,7 +1007,6 @@ class SudokuGame: ObservableObject {
             saveState()
             board[cell.row][cell.col] = 0
             notes[cell.row][cell.col].removeAll()
-            // We do not clear any hints already placed in a cell
             hasError = false
             isComplete = false
             
@@ -1083,7 +1081,19 @@ class SudokuGame: ObservableObject {
         // Save after clearing notes (with debounce)
         debouncedSave()
     }
-    
+
+    /// Returns `true` if the board has errors
+    func checkErrors() -> Bool {
+        for r in 0..<SudokuGame.size {
+            for c in 0..<SudokuGame.size {
+                if board[r][c] != solution[r][c] {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
     /// Checks if the puzzle has been completed successfully.
     func checkCompletion() {
         for row in board {
@@ -1093,16 +1103,11 @@ class SudokuGame: ObservableObject {
             }
         }
         
-        hasError = false
-        for r in 0..<SudokuGame.size {
-            for c in 0..<SudokuGame.size {
-                if board[r][c] != solution[r][c] {
-                    hasError = true
-                    return
-                }
-            }
+        hasError = checkErrors()
+        if hasError {
+            return
         }
-        
+
         isComplete = true
         showConfetti = true
         stopTimer()

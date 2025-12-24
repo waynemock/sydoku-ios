@@ -25,7 +25,7 @@ struct StartTodaysChallengeAlert: ViewModifier {
                         onStartToday()
                     },
                     secondaryButton: .cancel(Text("Continue Anyway")) {
-                        game.postLoadSetup()
+                        // just close the alert
                     }
                 )
             }

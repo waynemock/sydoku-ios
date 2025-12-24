@@ -10,7 +10,11 @@ struct InputControls: View {
     
     /// The current theme for styling.
     var theme: Theme
-    
+
+    var isDisabled: Bool {
+        game.isGenerating || game.isPaused || game.isMistakeLimitReached || game.isComplete
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             Spacer()
@@ -26,7 +30,7 @@ struct InputControls: View {
                             .fill(game.canUndo ? theme.primaryAccent : theme.secondaryText.opacity(0.25))
                     )
             }
-            .disabled(!game.canUndo || game.isGenerating || game.isPaused || game.isMistakeLimitReached)
+            .disabled(!game.canUndo || isDisabled)
             .buttonStyle(ScaleButtonStyle())
             
             // Center: Input mode controls (Pen/Notes)
@@ -57,8 +61,8 @@ struct InputControls: View {
                             .frame(width: 88, height: 52)
                     }
                     .buttonStyle(.plain)
-                    .disabled(game.isPaused || game.isMistakeLimitReached)
-                    
+                    .disabled(isDisabled)
+
                     // Notes button (pencil mode)
                     Button(action: { 
                         game.isPencilMode = true
@@ -71,7 +75,7 @@ struct InputControls: View {
                             .frame(width: 88, height: 52)
                     }
                     .buttonStyle(.plain)
-                    .disabled(game.isPaused || game.isMistakeLimitReached)
+                    .disabled(isDisabled)
                 }
             }
             
@@ -86,7 +90,7 @@ struct InputControls: View {
                             .fill(game.canRedo ? theme.primaryAccent : theme.secondaryText.opacity(0.25))
                     )
             }
-            .disabled(!game.canRedo || game.isGenerating || game.isPaused || game.isMistakeLimitReached)
+            .disabled(!game.canRedo || isDisabled)
             .buttonStyle(ScaleButtonStyle())
             
             Spacer()

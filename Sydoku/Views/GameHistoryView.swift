@@ -22,6 +22,11 @@ struct GameHistoryView: View {
     @State private var showInProgress = true
     @State private var showCompleted = true
     
+    // Persistence service for CloudKit-aware operations
+    private var persistenceService: PersistenceService {
+        PersistenceService(modelContext: modelContext)
+    }
+    
     // Optional callback for when a game is selected to resume
     var onResumeGame: ((Game) -> Void)?
     
@@ -61,6 +66,9 @@ struct GameHistoryView: View {
                                             onViewGame?(game)
                                             dismiss()
                                         }
+                                        .swipeToDelete(theme: theme) {
+                                            deleteGame(game)
+                                        }
                                     }
                                 }
                             }
@@ -79,6 +87,9 @@ struct GameHistoryView: View {
                                             onViewGame?(game)
                                             dismiss()
                                         })
+                                        .swipeToDelete(theme: theme) {
+                                            deleteGame(game)
+                                        }
                                     }
                                 }
                             }
@@ -187,6 +198,13 @@ struct GameHistoryView: View {
             } else {
                 return "No games found. Start playing to see your games here!"
             }
+        }
+    }
+    
+    /// Deletes a game from both local storage and CloudKit.
+    private func deleteGame(_ game: Game) {
+        withAnimation {
+            persistenceService.deleteGame(game)
         }
     }
 }

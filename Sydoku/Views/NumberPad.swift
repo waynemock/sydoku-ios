@@ -86,7 +86,7 @@ struct NumberPad: View {
         }
         .padding()
         .frame(maxWidth: 600)  // Limit to portrait-like width
-        .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached)
+        .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached || game.isComplete)
     }
 }
 
