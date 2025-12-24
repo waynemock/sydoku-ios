@@ -38,8 +38,8 @@ struct ConfettiView: View {
         let screenArea = size.width * size.height
         let baseArea: CGFloat = 400_000 // Approximate iPhone screen area
         let scaleFactor = min(sqrt(screenArea / baseArea), 1)
-        let pieceCount = Int(200 * scaleFactor)
-        
+        let pieceCount = Int(300 * (scaleFactor))
+
         let explosionPoint = CGPoint(x: size.width / 2, y: size.height)
 
         // Calculate spread to be 10% wider than screen (55% on each side = 110% total)
