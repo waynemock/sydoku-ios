@@ -34,10 +34,13 @@ struct GameHistoryView: View {
     var onViewGame: ((Game) -> Void)?
     
     // Use @Query for efficient, reactive data fetching
+    // Completed games will sort by completion date, in-progress by start date
     @Query(
-        sort: \Game.completionDate,
-        order: .reverse
-    ) private var allCompletedGames: [Game]
+        sort: [
+            SortDescriptor(\Game.completionDate, order: .reverse),
+            SortDescriptor(\Game.startDate, order: .reverse)
+        ]
+    ) private var allGames: [Game]
     
     var body: some View {
         NavigationStack {
@@ -56,7 +59,7 @@ struct GameHistoryView: View {
                                         .foregroundColor(theme.primaryText)
                                         .padding(.horizontal)
                                     
-                                    ForEach(inProgressGames) { game in
+                                    ForEach(inProgressGames, id: \.gameID) { game in
                                         GameHistoryCard(game: game, showResumeButton: true) {
                                             // Resume this game
                                             onResumeGame?(game)
@@ -69,6 +72,7 @@ struct GameHistoryView: View {
                                         .swipeToDelete(theme: theme) {
                                             deleteGame(game)
                                         }
+                                        .id(game.gameID)
                                     }
                                 }
                             }
@@ -81,7 +85,7 @@ struct GameHistoryView: View {
                                         .foregroundColor(theme.primaryText)
                                         .padding(.horizontal)
                                     
-                                    ForEach(completedGames) { game in
+                                    ForEach(completedGames, id: \.gameID) { game in
                                         GameHistoryCard(game: game, showResumeButton: false, onResume: nil, onView: {
                                             // View this completed game
                                             onViewGame?(game)
@@ -90,6 +94,7 @@ struct GameHistoryView: View {
                                         .swipeToDelete(theme: theme) {
                                             deleteGame(game)
                                         }
+                                        .id(game.gameID)
                                     }
                                 }
                             }
@@ -123,10 +128,11 @@ struct GameHistoryView: View {
                 }
             }
         }
+        .interactiveDismissDisabled()
     }
     
     private var filteredGames: [Game] {
-        var games = allCompletedGames
+        var games = allGames
         
         // Filter by completion status
         if !showInProgress || !showCompleted {
@@ -145,6 +151,16 @@ struct GameHistoryView: View {
         // Filter by daily challenge
         if showDailiesOnly {
             games = games.filter { $0.isDailyChallenge }
+        }
+        
+        // Remove duplicates by gameID (defensive programming)
+        var seenIDs = Set<String>()
+        games = games.filter { game in
+            if seenIDs.contains(game.gameID) {
+                return false
+            }
+            seenIDs.insert(game.gameID)
+            return true
         }
         
         return games
@@ -334,49 +350,88 @@ private struct GameHistoryCard: View {
     let onResume: (() -> Void)?
     let onView: (() -> Void)?
     
+    /// Get the daily challenge time context (Today, Yesterday, or Past).
+    private var dailyChallengeContext: String? {
+        guard game.isDailyChallenge, let savedDateString = game.dailyChallengeDate else {
+            return nil
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        
+        guard let savedDate = formatter.date(from: savedDateString) else {
+            return nil
+        }
+        
+        let calendar = Calendar.current
+        if calendar.isDateInToday(savedDate) {
+            return "Today"
+        } else if calendar.isDateInYesterday(savedDate) {
+            return "Yesterday"
+        } else {
+            return "Past"
+        }
+    }
+    
+    /// Get the display text for daily challenges.
+    private var dailyDisplayText: String {
+        if game.isCompleted {
+            // Completed games just show "Daily"
+            return "Daily"
+        } else if let context = dailyChallengeContext {
+            // In-progress games show context
+            return "Daily: \(context)"
+        } else {
+            return "Daily"
+        }
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
-            HStack {
-                // Difficulty badge
-                Text(game.difficulty)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6)
-                            .fill(difficultyColor)
-                    )
-                
-                if game.isDailyChallenge {
-                    Text("Daily")
+            VStack(alignment: .leading, spacing: 6) {
+                // Chips row
+                HStack {
+                    // Difficulty badge
+                    Text(game.difficulty.capitalized)
                         .font(.caption.weight(.semibold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(
                             RoundedRectangle(cornerRadius: 6)
-                                .fill(theme.primaryAccent)
+                                .fill(difficultyColor)
                         )
+                    
+                    if game.isDailyChallenge {
+                        Text(dailyDisplayText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(theme.primaryAccent)
+                            )
+                    }
+                    
+                    if !game.isCompleted {
+                        Text("In Progress")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(theme.primaryAccent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(theme.primaryAccent.opacity(0.15))
+                            )
+                    }
+                    
+                    Spacer()
                 }
-                
-                if !game.isCompleted {
-                    Text("In progress")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(theme.primaryAccent)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(theme.primaryAccent.opacity(0.15))
-                        )
-                }
-                
-                Spacer()
                 
                 // Date (completion or start date)
-                Text(game.completionDate ?? game.startDate, style: .date)
+                Text(game.completionDate ?? game.startDate, format: .dateTime.month(.abbreviated).day().year())
                     .font(.caption)
                     .foregroundColor(theme.secondaryText)
             }
@@ -436,6 +491,7 @@ private struct GameHistoryCard: View {
                                 .fill(theme.primaryAccent.opacity(0.15))
                         )
                     }
+                    .buttonStyle(.plain)
                 }
                 
                 // View button for completed games
@@ -457,6 +513,7 @@ private struct GameHistoryCard: View {
                                 .fill(theme.primaryAccent.opacity(0.15))
                         )
                     }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -471,6 +528,7 @@ private struct GameHistoryCard: View {
                         .stroke(game.isCompleted ? Color.clear : theme.primaryAccent.opacity(0.3), lineWidth: 1)
                 }
         )
+        .id(game.gameID) // Force SwiftUI to treat each card as unique
     }
     
     private var difficultyColor: Color {
@@ -539,18 +597,18 @@ private struct GameHistoryCard: View {
         isCompleted: false
     )
     
-    // In-progress Medium daily challenge
+    // In-progress Medium daily challenge (from yesterday - should show "Past" chip)
     let inProgressMediumDaily = Game(
         initialBoardData: Array(repeating: 0, count: 81),
         solutionData: Array(repeating: 5, count: 81),
         boardData: Array(repeating: 0, count: 81),
         difficulty: "medium",
         elapsedTime: 780, // 13:00
-        startDate: calendar.date(byAdding: .hour, value: -2, to: now)!,
+        startDate: calendar.date(byAdding: .day, value: -1, to: now)!,
         mistakes: 5,
         hintsData: Array(repeating: 0, count: 81),
         isDailyChallenge: true,
-        dailyChallengeDate: "2025-12-23",
+        dailyChallengeDate: "2025-12-23", // Yesterday's date - will show "Past" chip
         isCompleted: false
     )
     
@@ -649,9 +707,45 @@ private struct GameHistoryCard: View {
         isCompleted: false
     )
     
+    // In-progress daily challenge from TODAY (should show "Daily: Today")
+    let formatter = DateFormatter()
+    formatter.dateFormat = "yyyy-MM-dd"
+    let todayDateString = formatter.string(from: now)
+    
+    let inProgressTodayDaily = Game(
+        initialBoardData: Array(repeating: 0, count: 81),
+        solutionData: Array(repeating: 5, count: 81),
+        boardData: Array(repeating: 0, count: 81),
+        difficulty: "easy",
+        elapsedTime: 120, // 2:00
+        startDate: calendar.date(byAdding: .hour, value: -1, to: now)!,
+        mistakes: 1,
+        hintsData: Array(repeating: 0, count: 81),
+        isDailyChallenge: true,
+        dailyChallengeDate: todayDateString, // Today's date - will show "Daily: Today"
+        isCompleted: false
+    )
+    
+    // In-progress daily challenge from 3 days ago (should show "Daily: Past")
+    let inProgressPastDaily = Game(
+        initialBoardData: Array(repeating: 0, count: 81),
+        solutionData: Array(repeating: 5, count: 81),
+        boardData: Array(repeating: 0, count: 81),
+        difficulty: "hard",
+        elapsedTime: 900, // 15:00
+        startDate: calendar.date(byAdding: .day, value: -3, to: now)!,
+        mistakes: 7,
+        hintsData: [1, 0, 0] + Array(repeating: 0, count: 78),
+        isDailyChallenge: true,
+        dailyChallengeDate: "2025-12-21", // 3 days ago - will show "Daily: Past"
+        isCompleted: false
+    )
+    
     // Insert all mock games
     container.mainContext.insert(inProgressEasy)
     container.mainContext.insert(inProgressMediumDaily)
+    container.mainContext.insert(inProgressTodayDaily)
+    container.mainContext.insert(inProgressPastDaily)
     container.mainContext.insert(completedEasyPerfect)
     container.mainContext.insert(completedMedium)
     container.mainContext.insert(completedHardDailyPerfect)

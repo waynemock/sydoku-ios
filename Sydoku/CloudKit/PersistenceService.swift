@@ -203,6 +203,30 @@ class PersistenceService {
         return game
     }
     
+    /// Fetches a daily challenge for a specific date and difficulty, if one exists.
+    ///
+    /// - Parameters:
+    ///   - difficulty: The difficulty level to search for.
+    ///   - dateString: The date string (yyyy-MM-dd format) of the daily challenge.
+    /// - Returns: The daily challenge game if found, or nil if it doesn't exist.
+    func fetchDailyChallenge(difficulty: String, dateString: String) -> Game? {
+        let descriptor = FetchDescriptor<Game>(
+            predicate: #Predicate { game in
+                game.isDailyChallenge &&
+                game.dailyChallengeDate == dateString &&
+                game.difficulty == difficulty
+            }
+        )
+        
+        let game = try? modelContext.fetch(descriptor).first
+        if let game = game {
+            syncMonitor.logFetch("Found existing daily challenge: \(difficulty) for \(dateString) (completed: \(game.isCompleted))")
+        } else {
+            syncMonitor.logFetch("No daily challenge found for: \(difficulty) on \(dateString)")
+        }
+        return game
+    }
+    
     /// Fetches a game by its unique ID (checks both in-progress and completed games).
     ///
     /// - Parameter gameID: The unique identifier of the game.

@@ -37,7 +37,9 @@ struct FooterView: View {
             HStack(spacing: 16) {
                 MistakesCounter(game: game, theme: theme)
                 Spacer()
-                TimerButtonView(game: game, theme: theme)
+                if !game.isComplete {
+                    TimerButtonView(game: game, theme: theme)
+                }
             }
             .padding(.horizontal)
             .frame(maxWidth: 600, minHeight: 36)  // Limit to portrait-like width

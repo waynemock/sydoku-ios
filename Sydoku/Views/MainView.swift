@@ -85,6 +85,7 @@ struct MainView: View {
                             if game.isDailyChallengeExpired {
                                 showingExpiredDailyAlert = true
                             }
+                            // Timer already started by loadGame() if game is not paused
                         } else {
                             showingNewGamePicker = true
                         }
@@ -116,6 +117,7 @@ struct MainView: View {
                         if game.isDailyChallengeExpired {
                             showingExpiredDailyAlert = true
                         }
+                        // Timer already started by loadGame() during sync if game is not paused
                     } else {
                         // No saved game - show the new game picker so user can choose difficulty
                         showingNewGamePicker = true
@@ -245,6 +247,7 @@ struct MainView: View {
                 // Only dismiss the new game picker if the board actually has content
                 if game.hasBoardBeenGenerated {
                     showingNewGamePicker = false
+                    // Timer already started by loadGame() if game is not paused
                 }
             } else {
                 // No game in progress - show the new game picker if board is empty

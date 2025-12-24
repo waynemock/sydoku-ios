@@ -361,8 +361,11 @@ class SudokuGame: ObservableObject {
     
     /// Starts the game timer, updating elapsed time every second.
     func startTimer() {
+        logger.debug(self, "startTimer() called - hasBoardBeenGenerated: \(hasBoardBeenGenerated), isPaused: \(isPaused), solution.isEmpty: \(solution.isEmpty)")
+        
         // Don't start timer if no puzzle exists yet
-        guard !solution.isEmpty && !hasBoardBeenGenerated else {
+        guard hasBoardBeenGenerated else {
+            logger.info(self, "Prevented timer start - board not generated yet")
             return
         }
         
@@ -373,7 +376,9 @@ class SudokuGame: ObservableObject {
         }
         
         stopTimer()
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        
+        // Ensure timer is created on the main run loop
+        timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
             // Double-check pause state on each tick (in case sync changed it)
             if self.isPaused {
@@ -383,11 +388,18 @@ class SudokuGame: ObservableObject {
             }
             self.elapsedTime += 1
         }
-        logger.debug(self, "Timer started")
+        
+        // Add to main run loop with common modes so it runs during UI interactions
+        RunLoop.main.add(timer!, forMode: .common)
+        
+        logger.info(self, "Timer started successfully - timer object: \(String(describing: timer))")
     }
     
     /// Stops the game timer.
     func stopTimer() {
+        if timer != nil {
+            logger.debug(self, "Timer stopped and invalidated")
+        }
         timer?.invalidate()
         timer = nil
     }
@@ -407,6 +419,8 @@ class SudokuGame: ObservableObject {
     
     /// Resumes the game timer if the game is in progress.
     func resumeTimer() {
+        logger.info(self, "resumeTimer() called - isComplete: \(isComplete), isGenerating: \(isGenerating), isMistakeLimitReached: \(isMistakeLimitReached)")
+        
         if !isComplete && !isGenerating && !isMistakeLimitReached {
             isPaused = false
             
@@ -417,6 +431,8 @@ class SudokuGame: ObservableObject {
             logger.info(self, "Game resumed - saving state (isPaused: \(isPaused))")
             startTimer()
             saveGame() // Save when resuming
+        } else {
+            logger.info(self, "resumeTimer() did not start timer - conditions not met")
         }
     }
     
@@ -440,6 +456,8 @@ class SudokuGame: ObservableObject {
     ///   - game: The saved game to load.
     ///   - resetCompletionState: Whether to reset completion flags (for resuming in-progress games).
     func loadGame(from game: Game, clearUIState: Bool = false) {
+        logger.info(self, "loadGame() called - gameID: \(game.gameID), isCompleted: \(game.isCompleted), wasPaused: \(game.wasPaused)")
+        
         let wasPreviouslyPaused = isPaused
 
         // Load board state
@@ -500,16 +518,18 @@ class SudokuGame: ObservableObject {
 
         currentGameID = isComplete ? nil : game.gameID
 
+        logger.info(self, "loadGame() timer decision - isComplete: \(isComplete), isPaused: \(isPaused), hasBoardBeenGenerated: \(hasBoardBeenGenerated)")
+        
         // Manage timer based on complete and pause states
         if isComplete {
             stopTimer()
             logger.info(self, "Completed game, ensure timer stopped")
         } else if isPaused {
             stopTimer()
-            logger.info(self, "New game is paused, timer stopped")
+            logger.info(self, "Loaded game is paused, timer stopped")
         } else {
+            logger.info(self, "Attempting to start timer from loadGame")
             startTimer()
-            logger.info(self, "New game is running, timer started")
         }
 
         if wasPreviouslyPaused != isPaused {
@@ -573,7 +593,7 @@ class SudokuGame: ObservableObject {
         hasInProgressGame = true
         logger.debug(self, "Game saved (isPaused: \(isPaused), time: \(Int(elapsedTime))s)")
     }
-    
+
     private func checkForSavedGame() {
         if let savedGame = persistenceService?.fetchInProgressGame() {
             loadGame(from: savedGame)
@@ -722,6 +742,8 @@ class SudokuGame: ObservableObject {
         self.stats.recordStart(difficulty: difficulty.rawValue)
         self.saveStats()
         self.saveGame()
+        
+        logger.info(self, "Attempting to start timer from finalizePuzzleGeneration - hasBoardBeenGenerated: \(hasBoardBeenGenerated)")
         self.startTimer()
     }
     
@@ -1240,6 +1262,18 @@ class SudokuGame: ObservableObject {
         let seed = DailyChallenge.getSeed(for: today)
         let dateString = DailyChallenge.getDateString(for: today)
         
+        // Check if a daily challenge for this difficulty and date already exists
+        if let existingChallenge = persistenceService?.fetchDailyChallenge(
+            difficulty: difficulty.rawValue,
+            dateString: dateString
+        ) {
+            logger.info(self, "Loading existing daily challenge: \(difficulty.name) for \(dateString)")
+            loadGame(from: existingChallenge)
+            return
+        }
+        
+        // No existing challenge found - generate a new one
+        logger.info(self, "Generating new daily challenge: \(difficulty.name) for \(dateString)")
         generatePuzzle(difficulty: difficulty, seed: seed, isDailyChallenge: true)
         dailyChallengeDate = dateString
     }
@@ -1297,6 +1331,7 @@ class SudokuGame: ObservableObject {
         isMistakeLimitReached = false
         isDailyChallenge = false
         
+        logger.info(self, "Attempting to start timer from loadFromCode - hasBoardBeenGenerated: \(hasBoardBeenGenerated)")
         startTimer()
         return true
     }

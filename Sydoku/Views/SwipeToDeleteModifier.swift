@@ -38,7 +38,7 @@ struct SwipeToDelete: ViewModifier {
     private let readyThreshold: CGFloat = -120
 
     /// Threshold for triggering auto-delete on full swipe.
-    private let deleteThreshold: CGFloat = -200
+    private let deleteThreshold: CGFloat = -220
 
     func body(content: Content) -> some View {
         ZStack(alignment: .trailing) {
@@ -48,14 +48,15 @@ struct SwipeToDelete: ViewModifier {
             content
                 .background(Color.clear) // Ensure content has a background to cover delete button
                 .offset(x: offset)
-                .gesture(
-                    DragGesture(minimumDistance: 20)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 30) // Increased to avoid capturing taps
                         .onChanged { gesture in
                             let translation = gesture.translation.width
                             let verticalTranslation = gesture.translation.height
                             
                             // Only handle horizontal swipes (not vertical scrolls)
-                            guard abs(translation) > abs(verticalTranslation) else {
+                            // Require more horizontal movement than vertical
+                            guard abs(translation) > abs(verticalTranslation) * 1.5 else {
                                 return
                             }
                             
@@ -73,7 +74,7 @@ struct SwipeToDelete: ViewModifier {
                             let velocity = gesture.predictedEndTranslation.width - gesture.translation.width
                             
                             // If this was primarily a vertical gesture, don't handle it
-                            guard abs(translation) > abs(verticalTranslation) else {
+                            guard abs(translation) > abs(verticalTranslation) * 1.5 else {
                                 return
                             }
                             
