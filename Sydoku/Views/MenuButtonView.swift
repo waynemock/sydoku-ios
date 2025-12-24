@@ -14,23 +14,27 @@ struct MenuButtonView: View {
     
     /// The shared CloudKit status manager from the app environment.
     @EnvironmentObject private var cloudKitStatus: CloudKitStatus
-    
+
+    var isDisabled: Bool {
+        game.isGenerating || game.isComplete || game.isPaused || game.isMistakeLimitReached
+    }
+
     var body: some View {
         Menu {
             Button(action: { game.giveHint() }) {
                 Label("Show Hint", systemImage: "lightbulb")
             }
-            .disabled(game.isGenerating || game.isComplete || game.isPaused || game.isMistakeLimitReached)
-            
+            .disabled(isDisabled)
+
             Button(action: { game.autoFillNotes() }) {
                 Label("Auto Notes", systemImage: "wand.and.stars")
             }
-            .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached)
-            
+            .disabled(isDisabled)
+
             Button(action: { game.clearAllNotes() }) {
                 Label("Clear Notes", systemImage: "trash")
             }
-            .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached)
+            .disabled(isDisabled)
 
             Divider()
             

@@ -99,7 +99,7 @@ struct NewGameView: View {
             }
             
             // Cancel button (only show if there's an active game)
-            if game.hasInProgressGame || !game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
+            if game.hasInProgressGame || game.hasBoardBeenGenerated {
                 Button(action: {
                     game.startTimer()
                     isPresented = false
@@ -195,7 +195,7 @@ struct NewGamePicker: ViewModifier {
                             .ignoresSafeArea()
                             .onTapGesture {
                                 // Resume timer if dismissing with an active game
-                                if game.hasInProgressGame || !game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
+                                if game.hasInProgressGame || game.hasBoardBeenGenerated {
                                     game.startTimer()
                                 }
                                 isPresented = false

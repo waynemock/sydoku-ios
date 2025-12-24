@@ -6,8 +6,7 @@ import SwiftUI
 /// down naturally with rotation and physics-based movement before fading away.
 struct ConfettiView: View {
     @State private var confettiPieces: [ConfettiPieceModel] = []
-    @State private var hasGenerated = false
-    
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -17,10 +16,7 @@ struct ConfettiView: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .onAppear {
-                if !hasGenerated {
-                    generateConfetti(in: geometry.size)
-                    hasGenerated = true
-                }
+                generateConfetti(in: geometry.size)
             }
             .task {
                 // Alternative trigger that works better with SwiftUI lifecycle
@@ -31,13 +27,21 @@ struct ConfettiView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
     
     /// Generates confetti pieces that explode from the bottom center.
     private func generateConfetti(in size: CGSize) {
-        let pieceCount = 200 // Doubled from 100
-        let explosionPoint = CGPoint(x: size.width / 2, y: size.height - 100) // Start slightly above bottom
+        // Scale confetti count based on screen size
+        // Base count for iPhone (around 400k pixels): 200 pieces
+        // Scale proportionally for larger screens (iPad can be 1-2M pixels)
+        let screenArea = size.width * size.height
+        let baseArea: CGFloat = 400_000 // Approximate iPhone screen area
+        let scaleFactor = min(sqrt(screenArea / baseArea), 1)
+        let pieceCount = Int(200 * scaleFactor)
         
+        let explosionPoint = CGPoint(x: size.width / 2, y: size.height)
+
         // Calculate spread to be 10% wider than screen (55% on each side = 110% total)
         let maxSpreadPercent: CGFloat = 0.55
         let maxHorizontalSpread = size.width * maxSpreadPercent

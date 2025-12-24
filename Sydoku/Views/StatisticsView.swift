@@ -14,9 +14,6 @@ struct StatisticsView: View {
     /// Environment theme.
     @Environment(\.theme) var theme
     
-    /// Whether the reset confirmation alert is showing.
-    @State private var showingResetConfirmation = false
-    
     var body: some View {
         NavigationView {
             Form {
@@ -171,21 +168,6 @@ struct StatisticsView: View {
                         }
                     }
                 }
-                
-                // MARK: - Reset Statistics
-                Section {
-                    Button(action: {
-                        showingResetConfirmation = true
-                    }) {
-                        HStack {
-                            Spacer()
-                            Text("Reset Statistics")
-                                .foregroundColor(theme.errorColor)
-                            Spacer()
-                        }
-                    }
-                    .listRowBackground(theme.cellBackgroundColor)
-                }
             }
             .scrollContentBackground(.hidden)
             .background(theme.backgroundColor)
@@ -201,16 +183,6 @@ struct StatisticsView: View {
                     }
                     .foregroundColor(.white)
                 }
-            }
-            .alert(isPresented: $showingResetConfirmation) {
-                Alert(
-                    title: Text("Reset Statistics?"),
-                    message: Text("This will permanently delete all your game statistics, including streaks, completion times, and game counts. This action cannot be undone."),
-                    primaryButton: .destructive(Text("Reset")) {
-                        game.resetStats()
-                    },
-                    secondaryButton: .cancel()
-                )
             }
         }
     }
