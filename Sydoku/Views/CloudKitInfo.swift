@@ -167,10 +167,10 @@ struct CloudKitInfo: View {
 			.background(
 				RoundedRectangle(cornerRadius: 12)
 					.fill(Color.orange.opacity(0.1))
-					.overlay(
-						RoundedRectangle(cornerRadius: 12)
-							.stroke(Color.orange.opacity(0.3), lineWidth: 1)
-					)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                    }
 			)
 			
 			VStack(alignment: .leading, spacing: 12) {

@@ -188,10 +188,10 @@ struct ThemePreviewBox: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(color)
                 .frame(height: 50)
-                .overlay(
+                .overlay {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(theme.primaryText.opacity(0.2), lineWidth: 1)
-                )
+                }
             Text(label)
                 .font(.caption)
                 .foregroundColor(theme.secondaryText)

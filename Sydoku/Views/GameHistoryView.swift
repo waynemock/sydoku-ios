@@ -466,10 +466,10 @@ private struct GameHistoryCard: View {
                 .fill(game.isCompleted ? 
                       theme.cellBackgroundColor : 
                       theme.primaryAccent.opacity(0.08))
-                .overlay(
+                .overlay {
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(game.isCompleted ? Color.clear : theme.primaryAccent.opacity(0.3), lineWidth: 1)
-                )
+                }
         )
     }
     

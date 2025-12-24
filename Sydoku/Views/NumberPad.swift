@@ -130,10 +130,10 @@ struct NumberButton: View {
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(buttonGradient)
-                    .overlay(
+                    .overlay {
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(isHighlighted ? Color.white.opacity(0.5) : Color.clear, lineWidth: 2)
-                    )
+                    }
             )
             .shadow(color: shadowColor, radius: 5, y: 3)
         }

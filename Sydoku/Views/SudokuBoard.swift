@@ -18,7 +18,11 @@ struct SudokuBoard: View {
     
     /// The current color scheme.
     @Environment(\.colorScheme) var colorScheme
-    
+
+    var isDarkMode: Bool {
+        colorScheme == .dark || theme.colorScheme == .dark
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let boardSize = min(geometry.size.width, geometry.size.height)
@@ -26,7 +30,7 @@ struct SudokuBoard: View {
             
             ZStack {
                 // Glow background layer (dark mode only)
-                if colorScheme == .dark || theme.colorScheme == .dark {
+                if isDarkMode {
                     RoundedRectangle(cornerRadius: 8)
                         .fill(theme.cellBackgroundColor)
                         .frame(width: boardSize, height: boardSize)
@@ -34,22 +38,30 @@ struct SudokuBoard: View {
                         .shadow(color: theme.primaryAccent.opacity(0.2), radius: 24, x: 0, y: 0)
                         .shadow(color: theme.primaryAccent.opacity(0.1), radius: 40, x: 0, y: 0)
                 }
-                
+
                 // Solid background to block glow bleed-through
                 RoundedRectangle(cornerRadius: 8)
                     .fill(theme.cellBackgroundColor)
                     .frame(width: boardSize, height: boardSize)
-                
+
                 // The actual board
                 boardGrid(cellSize: cellSize)
                     .frame(width: boardSize, height: boardSize)
                     .opacity(game.isGenerating ? 0.5 : 1.0)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(theme.primaryAccent.opacity(0.3), lineWidth: 2)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 1)
+                            .stroke(.black, lineWidth: 6)
+                            .cornerRadius(3)
+                            .offset()
+                            .frame(width: boardSize + 9, height: boardSize + 9)
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 1)
+                            .stroke(theme.primaryAccent.opacity(isDarkMode ? 1 : 1), lineWidth: 2)
+                            .offset(x: 0, y: 0)
+                            .frame(width: boardSize + 3, height: boardSize + 3)
+                    }
+
                 // Overlays in separate layer to avoid clipping
                 if game.isPaused {
                     PauseOverlay(game: game)
@@ -107,7 +119,7 @@ struct SudokuBoard: View {
                         .frame(width: cellSize, height: cellSize)
                         .clipShape(
                             .rect(
-                                topLeadingRadius: isTopLeft ? 8 : 0,
+                                topLeadingRadius: isTopLeft ? 0 : 0,
                                 bottomLeadingRadius: isBottomLeft ? 8 : 0,
                                 bottomTrailingRadius: isBottomRight ? 8 : 0,
                                 topTrailingRadius: isTopRight ? 8 : 0
@@ -129,12 +141,12 @@ struct SudokuBoard: View {
     }
 }
 
-#Preview("Active Game - Ocean Theme") {
+#Preview("Active Game - Blossom Theme - Dark") {
     @Previewable @State var showingNewGamePicker = false
     let game = SudokuGame()
     
     SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
-        .environment(\.theme, Theme(type: .ocean, colorScheme: .dark))
+        .environment(\.theme, Theme(type: .blossom, colorScheme: .dark))
         .preferredColorScheme(.dark)
         .onAppear {
             // Start a new easy game for preview
@@ -145,63 +157,18 @@ struct SudokuBoard: View {
         }
 }
 
-#Preview("Paused State - Forest Theme") {
+#Preview("Active Game - Blossom Theme - Light") {
     @Previewable @State var showingNewGamePicker = false
     let game = SudokuGame()
-    
-    SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
-        .environment(\.theme, Theme(type: .forest, colorScheme: .light))
-        .onAppear {
-            game.generatePuzzle(difficulty: .medium)
-            game.isPaused = true
-        }
-}
-#Preview("Game Over - Sunset Theme") {
-    @Previewable @State var showingNewGamePicker = false
-    let game = SudokuGame()
-    
-    SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
-        .environment(\.theme, Theme(type: .sunset, colorScheme: .light))
-        .onAppear {
-            game.generatePuzzle(difficulty: .hard)
-            // Simulate mistakes to reach game over
-            game.mistakes = game.settings.mistakeLimit
-        }
-}
 
-#Preview("Dark Mode - Ocean Theme with Glow") {
-    @Previewable @State var showingNewGamePicker = false
-    let game = SudokuGame()
-    
     SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
-        .environment(\.theme, Theme(type: .ocean, colorScheme: .dark))
+        .environment(\.theme, Theme(type: .blossom, colorScheme: .light))
         .preferredColorScheme(.dark)
         .onAppear {
-            game.generatePuzzle(difficulty: .medium)
-            game.selectedCell = (5, 3)
-            game.highlightedNumber = 7
-        }
-}
-
-#Preview("Generating State") {
-    @Previewable @State var showingNewGamePicker = false
-    let game = SudokuGame()
-    
-    SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
-        .environment(\.theme, Theme())
-        .onAppear {
-            game.isGenerating = true
+            // Start a new easy game for preview
             game.generatePuzzle(difficulty: .easy)
+            // Select a cell to show selection state
+            game.selectedCell = (4, 4)
+            game.highlightedNumber = game.board[4][4]
         }
 }
-
-// Helper function for preview
-private func findEmptyCell(in board: [[Int]], row: Int) -> (row: Int, col: Int)? {
-    for col in 0..<9 {
-        if board[row][col] == 0 {
-            return (row, col)
-        }
-    }
-    return nil
-}
-
