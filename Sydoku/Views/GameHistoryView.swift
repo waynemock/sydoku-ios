@@ -244,91 +244,67 @@ private struct FilterMenuButton: View {
     }
     
     var body: some View {
-        Menu {
-            Section("Difficulty") {
-                Button(action: { selectedDifficulty = nil }) {
-                    HStack {
-                        Text("All Difficulties")
-                        Spacer()
-                        if selectedDifficulty == nil {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
+        MenuButton(
+            icon: "line.3.horizontal.decrease.circle",
+            iconSize: 20,
+            badge: activeFilterCount > 0 ? activeFilterCount : nil,
+            theme: theme,
+            backgroundColor: theme.secondaryAccent.opacity(0.2)
+        ) {
+            MenuSection(title: "Difficulty") {
+                MenuItem(
+                    title: "All Difficulties",
+                    isSelected: selectedDifficulty == nil,
+                    action: { selectedDifficulty = nil }
+                )
                 
                 ForEach(Difficulty.allCases, id: \.self) { difficulty in
-                    Button(action: { 
-                        selectedDifficulty = selectedDifficulty == difficulty ? nil : difficulty
-                    }) {
-                        HStack {
-                            Text(difficulty.name)
-                            Spacer()
-                            if selectedDifficulty == difficulty {
-                                Image(systemName: "checkmark")
-                            }
+                    MenuItem(
+                        title: difficulty.name,
+                        isSelected: selectedDifficulty == difficulty,
+                        action: {
+                            selectedDifficulty = selectedDifficulty == difficulty ? nil : difficulty
                         }
-                    }
+                    )
                 }
             }
             
-            Section("Status") {
-                Button(action: { showInProgress.toggle() }) {
-                    HStack {
-                        Text("In Progress")
-                        Spacer()
-                        if showInProgress {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
+            MenuDivider()
+            
+            MenuSection(title: "Status") {
+                MenuItem(
+                    title: "In Progress",
+                    isSelected: showInProgress,
+                    action: { showInProgress.toggle() }
+                )
                 
-                Button(action: { showCompleted.toggle() }) {
-                    HStack {
-                        Text("Completed")
-                        Spacer()
-                        if showCompleted {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
+                MenuItem(
+                    title: "Completed",
+                    isSelected: showCompleted,
+                    action: { showCompleted.toggle() }
+                )
             }
             
-            Section("Type") {
-                Button(action: { showDailiesOnly.toggle() }) {
-                    HStack {
-                        Text("Daily Challenges")
-                        Spacer()
-                        if showDailiesOnly {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
+            MenuDivider()
+            
+            MenuSection(title: "Type") {
+                MenuItem(
+                    title: "Daily Challenges",
+                    isSelected: showDailiesOnly,
+                    action: { showDailiesOnly.toggle() }
+                )
             }
             
             if activeFilterCount > 0 {
-                Section {
-                    Button(role: .destructive, action: resetFilters) {
-                        Label("Clear All Filters", systemImage: "xmark.circle")
-                    }
-                }
+                MenuDivider()
+                
+                MenuItem(
+                    icon: "xmark.circle",
+                    title: "Clear All Filters",
+                    isDestructive: true,
+                    action: resetFilters
+                )
             }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "line.3.horizontal.decrease.circle")
-                    .font(.system(size: 20))
-                if activeFilterCount > 0 {
-                    ZStack {
-                        Circle()
-                            .fill(theme.primaryAccent)
-                            .frame(width: 16, height: 16)
-                        Text("\(activeFilterCount)")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white)
-                    }
-                    .offset(x: -4, y: -8)
-                }
-            }
-            .foregroundColor(theme.primaryAccent)
         }
     }
     

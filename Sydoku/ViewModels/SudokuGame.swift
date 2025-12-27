@@ -361,7 +361,7 @@ class SudokuGame: ObservableObject {
     
     /// Starts the game timer, updating elapsed time every second.
     func startTimer() {
-        logger.debug(self, "startTimer() called - hasBoardBeenGenerated: \(hasBoardBeenGenerated), isPaused: \(isPaused), solution.isEmpty: \(solution.isEmpty)")
+        logger.debug(self, "startTimer() called - hasBoardBeenGenerated: \(hasBoardBeenGenerated), isPaused: \(isPaused), isComplete: \(isComplete), isMistakeLimitReached: \(isMistakeLimitReached)")
         
         // Don't start timer if no puzzle exists yet
         guard hasBoardBeenGenerated else {
@@ -372,6 +372,18 @@ class SudokuGame: ObservableObject {
         // Don't start timer if game is paused
         guard !isPaused else {
             logger.info(self, "Prevented timer start - game is paused")
+            return
+        }
+        
+        // Don't start timer if game is complete
+        guard !isComplete else {
+            logger.info(self, "Prevented timer start - game is complete")
+            return
+        }
+        
+        // Don't start timer if mistake limit is reached
+        guard !isMistakeLimitReached else {
+            logger.info(self, "Prevented timer start - mistake limit reached")
             return
         }
         
@@ -402,6 +414,19 @@ class SudokuGame: ObservableObject {
         }
         timer?.invalidate()
         timer = nil
+    }
+    
+    /// Toggles the timer based on a paused state.
+    ///
+    /// This is a convenience method for UI interactions like showing/hiding sheets.
+    ///
+    /// - Parameter paused: If `true`, stops the timer. If `false`, starts the timer.
+    func toggleTimer(paused: Bool) {
+        if paused {
+            stopTimer()
+        } else {
+            startTimer()
+        }
     }
     
     /// Pauses the game timer.
@@ -611,14 +636,9 @@ class SudokuGame: ObservableObject {
         persistenceService?.saveStatistics(statsModel)
     }
     
-    func resetStats() {
-        stats = GameStats()
-        saveStats()
-    }
-    
     // MARK: - Undo/Redo
     private func saveState() {
-        let state = GameState(board: board, notes: notes)
+        let state = GameState(board: board, notes: notes, hints: hints)
         undoStack.append(state)
         if undoStack.count > maxUndoSteps {
             undoStack.removeFirst()
@@ -628,12 +648,13 @@ class SudokuGame: ObservableObject {
     
     func undo() {
         guard !undoStack.isEmpty else { return }
-        let currentState = GameState(board: board, notes: notes)
+        let currentState = GameState(board: board, notes: notes, hints: hints)
         redoStack.append(currentState)
         
         let previousState = undoStack.removeLast()
         board = previousState.board
         notes = previousState.notes
+        hints = previousState.hints
         checkCompletion()
         
         // Save after undo (with debounce)
@@ -642,12 +663,13 @@ class SudokuGame: ObservableObject {
     
     func redo() {
         guard !redoStack.isEmpty else { return }
-        let currentState = GameState(board: board, notes: notes)
+        let currentState = GameState(board: board, notes: notes, hints: hints)
         undoStack.append(currentState)
         
         let nextState = redoStack.removeLast()
         board = nextState.board
         notes = nextState.notes
+        hints = nextState.hints
         checkCompletion()
         
         // Save after redo (with debounce)
@@ -1101,6 +1123,31 @@ class SudokuGame: ObservableObject {
         }
         
         // Save after clearing notes (with debounce)
+        debouncedSave()
+    }
+    
+    /// Restarts the game to the initial puzzle state.
+    ///
+    /// Clears all user-entered guesses and notes, returning the board to the original puzzle.
+    /// This action is pushed to the undo stack so it can be undone.
+    func restartGame() {
+        saveState()
+        
+        // Reset the board to the initial state
+        for r in 0..<SudokuGame.size {
+            for c in 0..<SudokuGame.size {
+                board[r][c] = initialBoard[r][c]
+                notes[r][c].removeAll()
+                hints[r][c] = 0
+            }
+        }
+        
+        // Clear error and completion states
+        hasError = false
+        isComplete = false
+        isMistakeLimitReached = false
+        
+        // Save after restarting (with debounce)
         debouncedSave()
     }
 

@@ -256,25 +256,20 @@ struct MainView: View {
                 }
             }
         }
+        .onChange(of: showingHistory) { _, isShowing in
+            game.toggleTimer(paused: isShowing)
+        }
         .onChange(of: showingStats) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
-                game.startTimer()
-            }
+            game.toggleTimer(paused: isShowing)
         }
         .onChange(of: showingSettings) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
-                game.startTimer()
-            }
+            game.toggleTimer(paused: isShowing)
         }
         .onChange(of: showingAbout) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
-                game.startTimer()
-            }
+            game.toggleTimer(paused: isShowing)
         }
         .onChange(of: showingCloudKitInfo) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
-                game.startTimer()
-            }
+            game.toggleTimer(paused: isShowing)
         }
     }
     

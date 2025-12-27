@@ -102,7 +102,7 @@ struct HeaderView: View {
                     .buttonStyle(.plain)
                     
                     // Tools menu button
-                    MenuButtonView(
+                    MainMenu(
                         game: game,
                         theme: theme,
                         showingHistory: $showHistory,
