@@ -559,6 +559,12 @@ private struct GameHistoryCard: View {
                 .foregroundColor(theme.secondaryText)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(theme.primaryAccent.opacity(0.15))
+        )
     }
     
     private func formatTime(_ seconds: TimeInterval) -> String {

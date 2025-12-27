@@ -23,8 +23,8 @@ struct StatusView: View {
                         .font(.headline)
                         .foregroundColor(theme.primaryText)
                 }
-                .padding(.top, horizontalSizeClass == .compact ? 8 : -26)
-                .padding(.bottom, horizontalSizeClass == .compact ? -8 : 0)
+                .padding(.top, 8)
+                .padding(.bottom, 0)
                 .transition(.scale.combined(with: .opacity))
             } else if game.isComplete {
                 VStack(spacing: 4) {
@@ -55,7 +55,7 @@ struct StatusView: View {
                         .font(.headline)
                         .foregroundColor(theme.primaryAccent)
                 }
-                .padding(.top, horizontalSizeClass == .compact ? 8 : -52)
+                .padding(.top, 8)
                 .transition(.scale.combined(with: .opacity))
             } else if game.hasError {
                 Text("⚠️ There are errors in your solution ⚠️")

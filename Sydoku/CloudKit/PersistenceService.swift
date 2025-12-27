@@ -903,6 +903,25 @@ class PersistenceService {
         return (try? modelContext.fetch(descriptor)) ?? []
     }
     
+    /// Checks if there are any unfinished games (random games or daily challenges not from today).
+    ///
+    /// This is useful for showing UI elements like an "Unfinished Games" button.
+    ///
+    /// - Returns: `true` if there are any unfinished games that aren't today's daily challenges.
+    func hasUnfinishedGames() -> Bool {
+        let todayString = DailyChallenge.getDateString(for: Date())
+        let descriptor = FetchDescriptor<Game>(
+            predicate: #Predicate<Game> { game in
+                !game.isCompleted &&
+                (!game.isDailyChallenge || (game.dailyChallengeDate != nil && game.dailyChallengeDate != todayString))
+            }
+        )
+        
+        let games = (try? modelContext.fetch(descriptor)) ?? []
+        syncMonitor.logFetch("Found \(games.count) unfinished game(s) excluding today's dailies")
+        return !games.isEmpty
+    }
+    
     /// Fetches completed games with optional filters.
     ///
     /// - Parameters:

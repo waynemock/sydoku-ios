@@ -8,15 +8,28 @@ struct NewGameView: View {
     /// Binding to control the presentation of the difficulty picker.
     @Binding var isPresented: Bool
     
+    /// Binding to control the presentation of the game history sheet.
+    @Binding var showingHistory: Bool
+    
     /// Whether daily challenge mode is selected (vs random).
     @State private var isDailyMode: Bool
     
     /// The current theme for styling.
     @Environment(\.theme) var theme
     
-    init(game: SudokuGame, isPresented: Binding<Bool>) {
+    /// The SwiftData model context for fetching games.
+    @Environment(\.modelContext) private var modelContext
+    
+    /// Whether there are any unfinished games (random games or daily challenges not from today).
+    private var hasUnfinishedGames: Bool {
+        let persistenceService = PersistenceService(modelContext: modelContext)
+        return persistenceService.hasUnfinishedGames()
+    }
+    
+    init(game: SudokuGame, isPresented: Binding<Bool>, showingHistory: Binding<Bool>) {
         self.game = game
         self._isPresented = isPresented
+        self._showingHistory = showingHistory
         // Default to Daily mode unless all three daily challenges have been completed
         self._isDailyMode = State(initialValue: !game.settings.areAllDailyChallengesCompleted())
     }
@@ -105,18 +118,46 @@ struct NewGameView: View {
                 }
             }
             
-            // Cancel button (only show if there's an active game)
-            if game.hasInProgressGame || game.hasBoardBeenGenerated {
-                Button(action: {
-                    game.startTimer()
-                    isPresented = false
-                }) {
-                    Text("Cancel")
-                        .font(.body.weight(.medium))
-                        .foregroundColor(theme.secondaryText)
+            // Bottom buttons (Cancel and Unfinished Games)
+            HStack(spacing: 16) {
+                // Unfinished Games button (only show if there are unfinished games)
+                if hasUnfinishedGames {
+                    Button(action: {
+                        // Close new game view
+                        isPresented = false
+                        // Open game history
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                            showingHistory = true
+                        }
+                    }) {
+                        HStack {
+                            Image(systemName: "fossil.shell.fill")
+                                .font(.system(size: 20))
+                                .foregroundColor(theme.primaryAccent)
+                            Text("Unfinished Games")
+                                .font(.body.weight(.medium))
+                                .foregroundColor(theme.secondaryText)
+                        }
                         .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                
+                Spacer()
+                
+                // Cancel button (only show if there's an active game)
+                if game.hasInProgressGame || game.hasBoardBeenGenerated {
+                    Button(action: {
+                        game.startTimer()
+                        isPresented = false
+                    }) {
+                        Text("Cancel")
+                            .font(.body.weight(.medium))
+                            .foregroundColor(theme.secondaryText)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
         }
         .padding(EdgeInsets(top: 16, leading: 32, bottom: 16, trailing: 32))
@@ -254,6 +295,9 @@ struct NewGamePicker: ViewModifier {
     /// Binding to control the presentation of the difficulty picker.
     @Binding var isPresented: Bool
     
+    /// Binding to control the presentation of the game history sheet.
+    @Binding var showingHistory: Bool
+    
     /// The theme to use for styling.
     let theme: Theme
     
@@ -274,7 +318,7 @@ struct NewGamePicker: ViewModifier {
                             }
                         
                         // Alert content
-                        NewGameView(game: game, isPresented: $isPresented)
+                        NewGameView(game: game, isPresented: $isPresented, showingHistory: $showingHistory)
                             .environment(\.theme, theme)
                             .transition(.scale.combined(with: .opacity))
                     }
@@ -290,9 +334,56 @@ extension View {
     /// - Parameters:
     ///   - isPresented: A binding to control the presentation of the dialog.
     ///   - game: The game instance to use for generating puzzles.
+    ///   - showingHistory: A binding to control the presentation of the game history sheet.
     ///   - theme: The theme to use for styling.
     /// - Returns: A view with the difficulty picker modifier applied.
-    func newGamePicker(isPresented: Binding<Bool>, game: SudokuGame, theme: Theme) -> some View {
-        modifier(NewGamePicker(game: game, isPresented: isPresented, theme: theme))
+    func newGamePicker(isPresented: Binding<Bool>, game: SudokuGame, showingHistory: Binding<Bool>, theme: Theme) -> some View {
+        modifier(NewGamePicker(game: game, isPresented: isPresented, showingHistory: showingHistory, theme: theme))
     }
 }
+// MARK: - Previews
+
+#Preview("New Game View - Light Mode") {
+    NewGameView(
+        game: SudokuGame(),
+        isPresented: .constant(true),
+        showingHistory: .constant(false)
+    )
+    .environment(\.theme, Theme(type: .blossom, colorScheme: .light))
+    .preferredColorScheme(.light)
+}
+
+#Preview("New Game View - Dark Mode") {
+    NewGameView(
+        game: SudokuGame(),
+        isPresented: .constant(true),
+        showingHistory: .constant(false)
+    )
+    .environment(\.theme, Theme(type: .blossom, colorScheme: .dark))
+    .preferredColorScheme(.dark)
+}
+
+#Preview("New Game View - Ocean Theme") {
+    NewGameView(
+        game: SudokuGame(),
+        isPresented: .constant(true),
+        showingHistory: .constant(false)
+    )
+    .environment(\.theme, Theme(type: .ocean, colorScheme: .dark))
+    .preferredColorScheme(.dark)
+}
+
+#Preview("New Game View - With Active Game") {
+    let game = SudokuGame()
+    // Simulate an active game
+    game.hasInProgressGame = true
+    
+    return NewGameView(
+        game: game,
+        isPresented: .constant(true),
+        showingHistory: .constant(false)
+    )
+    .environment(\.theme, Theme(type: .sunset, colorScheme: .dark))
+    .preferredColorScheme(.dark)
+}
+

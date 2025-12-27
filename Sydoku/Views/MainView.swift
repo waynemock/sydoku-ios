@@ -240,7 +240,7 @@ struct MainView: View {
                 showingNewGamePicker = true
             }
         )
-        .newGamePicker(isPresented: $showingNewGamePicker, game: game, theme: theme)
+        .newGamePicker(isPresented: $showingNewGamePicker, game: game, showingHistory: $showingHistory, theme: theme)
         .onChange(of: game.hasInProgressGame) { _, hasInProgressGame in
             // If a saved game is detected (e.g., from iCloud sync)
             if hasInProgressGame {
