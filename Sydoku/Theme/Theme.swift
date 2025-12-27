@@ -17,7 +17,22 @@ struct Theme {
         case classic = "Classic"
         
         /// User-friendly display name for the theme.
-        var displayName: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .blossom:
+                return "Blossom"
+            case .forest:
+                return "Forest"
+            case .midnight:
+                return "Midnight"
+            case .ocean:
+                return "Ocean"
+            case .sunset:
+                return "Sunset"
+            case .classic:
+                return "Paper"
+            }
+        }
     }
     
     // MARK: - Propertiest
