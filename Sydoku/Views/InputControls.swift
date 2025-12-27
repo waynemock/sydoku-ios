@@ -78,6 +78,11 @@ struct InputControls: View {
                     .disabled(isDisabled)
                 }
             }
+            .overlay(
+                Capsule()
+                    .stroke(theme.primaryAccent, lineWidth: 2)
+                    .frame(width: 176, height: 52)
+            )
             
             // Redo button
             Button(action: { game.redo() }) {

@@ -77,7 +77,7 @@ struct HeaderView: View {
                     
                     // Puzzle type and difficulty
                     if !game.isGenerating && (game.hasInProgressGame || game.hasBoardBeenGenerated) {
-                        Text(game.isDailyChallenge ? "\(dailyChallengeLabel()) • \(game.difficulty.name)" : game.difficulty.name)
+                        Text("\(subTitleLabel()) • \(game.difficulty.name)")
                             .font(.appSubheadline)
                             .foregroundColor(theme.secondaryText)
                     }
@@ -173,10 +173,13 @@ struct HeaderView: View {
         }
     }
     
-    /// Returns the appropriate label for a daily challenge based on its date.
+    /// Returns the appropriate label for a the game
     ///
     /// - Returns: A string like "Today's Daily Challenge", "Yesterday's Daily Challenge", or "Past Daily Challenge"
-    private func dailyChallengeLabel() -> String {
+    private func subTitleLabel() -> String {
+        guard game.isDailyChallenge else {
+            return "Random Puzzle"
+        }
         guard let dateString = game.dailyChallengeDate else {
             return "Daily Challenge"
         }

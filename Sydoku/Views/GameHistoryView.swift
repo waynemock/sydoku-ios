@@ -403,13 +403,24 @@ private struct GameHistoryCard: View {
                             )
                     }
                     
+                    if game.isCompleted && game.mistakes == 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 10))
+                            Text("Perfect")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color(red: 0.8, green: 0.6, blue: 0.0))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.yellow.opacity(0.25))
+                        )
+                    }
+                    
                     Spacer()
                 }
-                
-                // Date (completion or start date)
-                Text(game.completionDate ?? game.startDate, format: .dateTime.month(.abbreviated).day().year())
-                    .font(.caption)
-                    .foregroundColor(theme.secondaryText)
             }
             
             // Stats
@@ -435,16 +446,10 @@ private struct GameHistoryCard: View {
             
             // Bottom section
             HStack {
-                // Perfect game indicator
-                if game.isCompleted && game.mistakes == 0 {
-                    HStack(spacing: 4) {
-                        Image(systemName: "star.fill")
-                            .font(.caption2)
-                        Text("Perfect Game!")
-                            .font(.caption.weight(.semibold))
-                    }
-                    .foregroundColor(.yellow)
-                }
+                // Date (completion or start date)
+                Text(game.completionDate ?? game.startDate, format: .dateTime.month(.abbreviated).day().year())
+                    .font(.caption)
+                    .foregroundColor(theme.secondaryText)
                 
                 Spacer()
                 

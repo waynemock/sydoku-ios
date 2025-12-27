@@ -84,6 +84,11 @@ struct NewGameView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .overlay(
+                Capsule()
+                    .stroke(theme.primaryAccent, lineWidth: 2)
+                    .frame(width: 240, height: 52)
+            )
             
             // Info text
             Text(isDailyMode ? "Play today's daily challenges" : "Each puzzle has a unique solution")
@@ -94,7 +99,7 @@ struct NewGameView: View {
             
             // Show info message if there's an in-progress game
             if game.hasInProgressGame && !isDailyMode {
-                Text("Starting a new game saves the current one in Game History")
+                Text("Starting a new game saves your current puzzle to Game History.")
                     .font(.caption)
                     .foregroundColor(theme.primaryAccent)
                     .multilineTextAlignment(.center)
@@ -210,6 +215,35 @@ struct DifficultyButton: View {
         return dailyGame.gameID == currentGameID
     }
     
+    /// Returns a darker, more saturated version of the difficulty color for better visibility in light mode
+    private func darkerColor(for difficulty: Difficulty) -> Color {
+        switch difficulty {
+        case .easy:
+            // Darker green
+            return Color(red: 0.0, green: 0.6, blue: 0.0)
+        case .medium:
+            // Darker orange
+            return Color(red: 0.9, green: 0.5, blue: 0.0)
+        case .hard:
+            // Darker red
+            return Color(red: 0.8, green: 0.0, blue: 0.0)
+        }
+    }
+    
+    /// Returns the appropriate text color for chips based on color scheme
+    private func chipTextColor(for difficulty: Difficulty) -> Color {
+        if theme.colorScheme == .dark {
+            return .white
+        } else {
+            return darkerColor(for: difficulty)
+        }
+    }
+    
+    /// Returns the appropriate background opacity for chips based on color scheme
+    private var chipBackgroundOpacity: Double {
+        theme.colorScheme == .dark ? 0.35 : 0.2
+    }
+    
     var body: some View {
         Button(action: action) {
             HStack {
@@ -236,41 +270,41 @@ struct DifficultyButton: View {
                                 .padding(.vertical, 4)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .fill(theme.color(for: difficulty))
+                                        .fill(darkerColor(for: difficulty))
                                 )
                         } else if isCurrentlyPlaying {
                             // Keep Playing chip (for the current game)
-                            Text("Keep Playing")
+                            Text("Continue")
                                 .font(.caption.weight(.semibold))
-                                .foregroundColor(theme.color(for: difficulty))
+                                .foregroundColor(chipTextColor(for: difficulty))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .fill(theme.color(for: difficulty).opacity(0.15))
+                                        .fill(darkerColor(for: difficulty).opacity(chipBackgroundOpacity))
                                 )
                         } else {
                             // In Progress chip (for a saved but not currently active game)
-                            Text("In Progress")
+                            Text("Return")
                                 .font(.caption.weight(.semibold))
-                                .foregroundColor(theme.color(for: difficulty))
+                                .foregroundColor(chipTextColor(for: difficulty))
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6)
-                                        .fill(theme.color(for: difficulty).opacity(0.15))
+                                        .fill(darkerColor(for: difficulty).opacity(chipBackgroundOpacity))
                                 )
                         }
                     } else {
                         // Start Playing chip
-                        Text("Start Playing")
+                        Text("Start")
                             .font(.caption.weight(.semibold))
-                            .foregroundColor(theme.color(for: difficulty))
+                            .foregroundColor(chipTextColor(for: difficulty))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .fill(theme.color(for: difficulty).opacity(0.15))
+                                    .fill(darkerColor(for: difficulty).opacity(chipBackgroundOpacity))
                             )
                     }
                 }
@@ -281,6 +315,10 @@ struct DifficultyButton: View {
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(theme.color(for: difficulty).opacity(0.3))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(darkerColor(for: difficulty), lineWidth: 2)
             )
         }
         .buttonStyle(.plain)

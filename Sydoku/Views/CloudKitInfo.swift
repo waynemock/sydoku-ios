@@ -118,10 +118,6 @@ struct CloudKitInfo: View {
 				.foregroundColor(.green)
 				.symbolEffect(.bounce, value: showSuccessAnimation)
 			
-			Text("You're All Set!")
-				.font(.title2.bold())
-				.foregroundColor(theme.primaryText)
-			
 			Text("Your Sudoku progress and statistics are now syncing across all your devices using iCloud.")
 				.font(.body)
 				.foregroundColor(theme.secondaryText)
@@ -152,15 +148,14 @@ struct CloudKitInfo: View {
 				HStack(spacing: 8) {
 					Image(systemName: "exclamationmark.triangle.fill")
 						.foregroundColor(.orange)
-					Text("Your Progress Isn't Being Saved")
+					Text("Your progress is saved locally, but not backed up or synced")
 						.font(.subheadline.bold())
 						.foregroundColor(theme.primaryText)
 				}
 				
-				Text("Without iCloud, if you delete the app or get a new device, you'll lose all your game history, statistics, and daily challenge streaks.")
-					.font(.caption)
+				Text("Without iCloud sync, deleting the app or switching to a new device will result in losing your game history, statistics, and daily challenge streaks.")
+					.font(.body)
 					.foregroundColor(theme.secondaryText)
-					.multilineTextAlignment(.center)
 			}
 			.padding()
 			.frame(maxWidth: .infinity)
@@ -180,8 +175,12 @@ struct CloudKitInfo: View {
 				
 				setupStep(number: "1", text: "Open the Settings app on your device")
 				setupStep(number: "2", text: "Tap your name at the top")
-				setupStep(number: "3", text: "Sign in to your Apple Account if you haven't already")
+				setupStep(number: "3", text: "Sign in to your Apple Account if needed")
 				setupStep(number: "4", text: "Ensure iCloud is turned on")
+
+                Text("You can continue playing normally without iCloud if you prefer not to sync.")
+                    .font(.caption)
+                    .foregroundColor(theme.secondaryText)
 			}
 			.frame(maxWidth: .infinity, alignment: .leading)
 			.padding()
@@ -237,12 +236,7 @@ struct CloudKitInfo: View {
 				benefitRow(
 					icon: "chart.line.uptrend.xyaxis", 
 					title: "Keep Your Stats", 
-					description: "Track your solve times, win streaks, and daily challenge progress across all devices."
-				)
-				benefitRow(
-					icon: "calendar.badge.clock", 
-					title: "Never Miss Daily Challenges", 
-					description: "Your daily challenge streak and history are preserved, even if you switch devices."
+					description: "Your solve times, streaks, and daily challenge history stay in sync across all devices."
 				)
 				benefitRow(
 					icon: "arrow.counterclockwise.circle.fill", 
@@ -252,7 +246,7 @@ struct CloudKitInfo: View {
 				benefitRow(
 					icon: "lock.shield.fill", 
 					title: "Private & Secure", 
-					description: "All your data is encrypted and only accessible to you. Apple can't read your game data."
+					description: "Your data is encrypted and accessible only through your iCloud account."
 				)
 				benefitRow(
 					icon: "wifi.slash", 
