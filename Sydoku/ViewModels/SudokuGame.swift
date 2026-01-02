@@ -1306,7 +1306,7 @@ class SudokuGame: ObservableObject {
     // MARK: - Daily Challenge
     func generateDailyChallenge(difficulty: Difficulty) {
         let today = Date()
-        let seed = DailyChallenge.getSeed(for: today)
+        let seed = DailyChallenge.getSeed(for: today, difficulty: difficulty)
         let dateString = DailyChallenge.getDateString(for: today)
         
         // Check if a daily challenge for this difficulty and date already exists
