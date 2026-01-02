@@ -17,7 +17,22 @@ struct Theme {
         case classic = "Classic"
         
         /// User-friendly display name for the theme.
-        var displayName: String { rawValue }
+        var displayName: String {
+            switch self {
+            case .blossom:
+                return "Blossom"
+            case .forest:
+                return "Forest"
+            case .midnight:
+                return "Midnight"
+            case .ocean:
+                return "Ocean"
+            case .sunset:
+                return "Sunset"
+            case .classic:
+                return "Paper"
+            }
+        }
     }
     
     // MARK: - Propertiest
@@ -139,12 +154,12 @@ struct Theme {
     
     /// Color for selected cell background.
     var selectedCellColor: Color {
-        primaryAccent.opacity(0.5)
+        primaryAccent.opacity(0.6)
     }
     
     /// Color for highlighted cell background.
     var highlightedCellColor: Color {
-        primaryAccent.opacity(0.2)
+        primaryAccent.opacity(0.3)
     }
     
     /// Color for hint cell background color.

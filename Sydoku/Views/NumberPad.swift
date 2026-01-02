@@ -9,6 +9,9 @@ struct NumberPad: View {
     /// The Sudoku game instance that manages the puzzle state.
     @ObservedObject var game: SudokuGame
     
+    /// Binding to control showing the new game picker.
+    @Binding var showingNewGamePicker: Bool
+    
     /// Environment theme.
     @Environment(\.theme) var theme
     
@@ -23,9 +26,13 @@ struct NumberPad: View {
                         isHighlighted: game.highlightedNumber == num,
                         theme: theme,
                         action: {
-                            game.setNumber(num)
-                            game.highlightedNumber = num
-                            game.saveUIState()
+                            if game.hasBoardBeenGenerated {
+                                game.setNumber(num)
+                                game.highlightedNumber = num
+                                game.saveUIState()
+                            } else {
+                                showingNewGamePicker = true
+                            }
                         }
                     )
                 }
@@ -40,9 +47,13 @@ struct NumberPad: View {
                         isHighlighted: game.highlightedNumber == num,
                         theme: theme,
                         action: {
-                            game.setNumber(num)
-                            game.highlightedNumber = num
-                            game.saveUIState()
+                            if game.hasBoardBeenGenerated {
+                                game.setNumber(num)
+                                game.highlightedNumber = num
+                                game.saveUIState()
+                            } else {
+                                showingNewGamePicker = true
+                            }
                         }
                     )
                 }
@@ -75,7 +86,7 @@ struct NumberPad: View {
         }
         .padding()
         .frame(maxWidth: 600)  // Limit to portrait-like width
-        .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached)
+        .disabled(game.isGenerating || game.isPaused || game.isMistakeLimitReached || game.isComplete)
     }
 }
 
@@ -119,10 +130,10 @@ struct NumberButton: View {
             .background(
                 RoundedRectangle(cornerRadius: 12)
                     .fill(buttonGradient)
-                    .overlay(
+                    .overlay {
                         RoundedRectangle(cornerRadius: 12)
                             .stroke(isHighlighted ? Color.white.opacity(0.5) : Color.clear, lineWidth: 2)
-                    )
+                    }
             )
             .shadow(color: shadowColor, radius: 5, y: 3)
         }

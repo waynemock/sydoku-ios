@@ -18,16 +18,12 @@ struct AboutView: View {
                 VStack(spacing: 20) {
                     // App Icon and Name
                     VStack(spacing: 16) {
-                        // App Icon or fallback to custom grid
                         if let appIcon = Bundle.main.icon {
                             Image(uiImage: appIcon)
                                 .resizable()
                                 .frame(width: 150, height: 150)
                                 .cornerRadius(22.5)
                                 .shadow(radius: 5)
-                        } else {
-                            MiniSudokuGrid()
-                                .frame(width: 150, height: 150)
                         }
                         
                         Text("Sydoku")
@@ -39,27 +35,37 @@ struct AboutView: View {
                             .font(.subheadline)
                             .foregroundColor(theme.secondaryText)
                     }
-                    .padding(.top, 40)
-                    
-                    Divider()
-                        .padding(.horizontal)
-                    
+                    .padding(.top, 30)
+
                     // Description
-                    VStack(spacing: 12) {
-                        Text("About Sydoku")
-                            .font(.headline)
-                            .foregroundColor(theme.primaryText)
-                        
-                        Text("A beautifully designed Sudoku puzzle game featuring elegant themes, smart hints, and daily challenges. Master your logic skills with puzzles across multiple difficulty levels.")
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Sydoku is a clean, thoughtfully designed Sudoku app.")
                             .font(.body)
                             .foregroundColor(theme.secondaryText)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 30)
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("•")
+                                    .font(.body)
+                                    .foregroundColor(theme.secondaryText)
+                                Text("No ads. No tracking. No distractions.")
+                                    .font(.body)
+                                    .foregroundColor(theme.secondaryText)
+                            }
+                            HStack(alignment: .top, spacing: 8) {
+                                Text("•")
+                                    .font(.body)
+                                    .foregroundColor(theme.secondaryText)
+                                Text("Just puzzles, done right.")
+                                    .font(.body)
+                                    .foregroundColor(theme.secondaryText)
+                            }
+                        }
+                        Text("Designed to stay out of your way so you can focus on solving, whether you’re playing a quick game or settling in for a longer session.")
+                            .font(.body)
+                            .foregroundColor(theme.secondaryText)
                     }
-                    
-                    Divider()
-                        .padding(.horizontal)
-                    
+                    .padding(.horizontal, 20)
+
                     // Features
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Features")
@@ -67,33 +73,36 @@ struct AboutView: View {
                             .foregroundColor(theme.primaryText)
                             .frame(maxWidth: .infinity, alignment: .center)
                         
-                        FeatureRow(icon: "lightbulb.fill", text: "Progressive hint system", color: theme.warningColor)
-                        FeatureRow(icon: "calendar", text: "Daily challenges with streaks", color: theme.primaryAccent)
-                        FeatureRow(icon: "paintbrush.fill", text: "Customizable themes", color: theme.secondaryAccent)
-                        FeatureRow(icon: "chart.bar.fill", text: "Comprehensive statistics", color: theme.successColor)
-                        FeatureRow(icon: "pencil.circle", text: "Smart pencil notes", color: theme.primaryAccent)
-                        FeatureRow(icon: "exclamationmark.triangle", text: "Auto error checking", color: theme.errorColor)
-                        FeatureRow(icon: "arrow.uturn.backward", text: "Unlimited undo/redo", color: theme.secondaryAccent)
-                        FeatureRow(icon: "hand.tap.fill", text: "Haptic feedback", color: theme.warningColor)
+                        FeatureRow(icon: "icloud.fill", text: "Seamless iCloud sync across your devices", color: theme.primaryAccent)
+                        FeatureRow(icon: "paintpalette.fill", text: "Multiple themes, including Blossom, Midnight, and Classic Paper", color: theme.primaryAccent)
+                        FeatureRow(icon: "pencil.and.outline", text: "Notes, highlights, and error checking that respect your focus", color: theme.primaryAccent)
+                        FeatureRow(icon: "fossil.shell.fill", text: "Complete game history and statistics", color: theme.primaryAccent)
+                        FeatureRow(icon: "ipad.landscape.and.iphone", text: "Scales beautifully on iPhone and iPad", color: theme.primaryAccent)
+                        FeatureRow(icon: "textformat.size", text: "Respects Dynamic Type and accessibility settings", color: theme.primaryAccent)
+
                     }
                     .padding(.horizontal, 30)
-                    
-                    Divider()
-                        .padding(.horizontal)
-                    
+                                        
                     // Copyright
                     VStack(spacing: 8) {
-                        Text("© 2025 Syzygy Softwerks LLC")
+                        Text("© 2026 Syzygy Softwerks LLC")
                             .font(.caption)
                             .foregroundColor(theme.secondaryText)
                         
-                        Text("Made by humans and AI for puzzle lovers in Arvada, Colorado, USA, Earth.")
+                        Text("Built by someone who just wanted a better Sudoku app.")
                             .font(.caption)
                             .foregroundColor(theme.secondaryText)
                             .multilineTextAlignment(.center)
-                            .padding(.vertical, 8)
+                            .padding(.horizontal, 30)
+
+
+                        Text("Arvada, Colorado, USA, Earth.")
+                            .font(.caption)
+                            .foregroundColor(theme.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 30)
                     }
-                    .padding(.bottom, 40)
+                    .padding(.bottom, 10)
                 }
             }
             .background(theme.backgroundColor)

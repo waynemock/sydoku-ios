@@ -76,8 +76,8 @@ struct HeaderView: View {
                     }
                     
                     // Puzzle type and difficulty
-                    if !game.isGenerating && (game.hasInProgressGame || !game.initialBoard.allSatisfy({ $0.allSatisfy({ $0 == 0 }) })) {
-                        Text(game.isDailyChallenge ? "Daily Challenge • \(game.difficulty.name)" : game.difficulty.name)
+                    if !game.isGenerating && (game.hasInProgressGame || game.hasBoardBeenGenerated) {
+                        Text("\(subTitleLabel()) • \(game.difficulty.name)")
                             .font(.appSubheadline)
                             .foregroundColor(theme.secondaryText)
                     }
@@ -102,7 +102,7 @@ struct HeaderView: View {
                     .buttonStyle(.plain)
                     
                     // Tools menu button
-                    MenuButtonView(
+                    MainMenu(
                         game: game,
                         theme: theme,
                         showingHistory: $showHistory,
@@ -172,4 +172,206 @@ struct HeaderView: View {
             pulseAnimation = true
         }
     }
+    
+    /// Returns the appropriate label for a the game
+    ///
+    /// - Returns: A string like "Today's Daily Challenge", "Yesterday's Daily Challenge", or "Past Daily Challenge"
+    private func subTitleLabel() -> String {
+        guard game.isDailyChallenge else {
+            return "Random Puzzle"
+        }
+        guard let dateString = game.dailyChallengeDate else {
+            return "Daily Challenge"
+        }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        
+        guard let challengeDate = formatter.date(from: dateString) else {
+            return "Daily Challenge"
+        }
+        
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let challenge = calendar.startOfDay(for: challengeDate)
+        
+        let daysDifference = calendar.dateComponents([.day], from: challenge, to: today).day ?? 0
+        
+        switch daysDifference {
+        case 0:
+            return "Today's Daily Challenge"
+        case 1:
+            return "Yesterday's Daily Challenge"
+        default:
+            return "Past Daily Challenge"
+        }
+    }
 }
+
+#Preview("Regular Game") {
+    @Previewable @State var showingNewGamePicker = false
+    @Previewable @State var showHistory = false
+    @Previewable @State var showingStats = false
+    @Previewable @State var showingSettings = false
+    @Previewable @State var showingAbout = false
+    @Previewable @State var showingErrorCheckingToast = false
+    @Previewable @State var showingCloudKitInfo = false
+    
+    return {
+        let game = SudokuGame()
+        game.currentDifficulty = .medium
+        game.elapsedTime = 125 // 2:05
+        // Set a minimal board so hasBoardBeenGenerated returns true
+        game.initialBoard[0][0] = 5
+        game.hasInProgressGame = true
+
+        return HeaderView(
+            game: game,
+            theme: Theme(),
+            showingNewGamePicker: $showingNewGamePicker,
+            showingHistory: $showHistory,
+            showingStats: $showingStats,
+            showingSettings: $showingSettings,
+            showingAbout: $showingAbout,
+            showingErrorCheckingToast: $showingErrorCheckingToast,
+            showingCloudKitInfo: $showingCloudKitInfo
+        )
+        .environmentObject(CloudKitStatus())
+        .background(Theme().backgroundColor)
+    }()
+}
+
+#Preview("Daily Challenge") {
+    @Previewable @State var showingNewGamePicker = false
+    @Previewable @State var showHistory = false
+    @Previewable @State var showingStats = false
+    @Previewable @State var showingSettings = false
+    @Previewable @State var showingAbout = false
+    @Previewable @State var showingErrorCheckingToast = false
+    @Previewable @State var showingCloudKitInfo = false
+    
+    return {
+        let game = SudokuGame()
+        game.currentDifficulty = .hard
+        game.isDailyChallenge = true
+        game.elapsedTime = 450 // 7:30
+        // Set today's date for the daily challenge
+        game.dailyChallengeDate = DailyChallenge.getDateString(for: Date())
+        // Set a minimal board so hasBoardBeenGenerated returns true
+        game.initialBoard[0][0] = 5
+        game.hasInProgressGame = true
+        
+        return HeaderView(
+            game: game,
+            theme: Theme(),
+            showingNewGamePicker: $showingNewGamePicker,
+            showingHistory: $showHistory,
+            showingStats: $showingStats,
+            showingSettings: $showingSettings,
+            showingAbout: $showingAbout,
+            showingErrorCheckingToast: $showingErrorCheckingToast,
+            showingCloudKitInfo: $showingCloudKitInfo
+        )
+        .environmentObject(CloudKitStatus())
+        .background(Theme().backgroundColor)
+    }()
+}
+
+#Preview("No Game Started") {
+    @Previewable @State var showingNewGamePicker = false
+    @Previewable @State var showHistory = false
+    @Previewable @State var showingStats = false
+    @Previewable @State var showingSettings = false
+    @Previewable @State var showingAbout = false
+    @Previewable @State var showingErrorCheckingToast = false
+    @Previewable @State var showingCloudKitInfo = false
+    
+    let game = SudokuGame()
+    // Don't set anything - clean state
+    
+    HeaderView(
+        game: game,
+        theme: Theme(),
+        showingNewGamePicker: $showingNewGamePicker,
+        showingHistory: $showHistory,
+        showingStats: $showingStats,
+        showingSettings: $showingSettings,
+        showingAbout: $showingAbout,
+        showingErrorCheckingToast: $showingErrorCheckingToast,
+        showingCloudKitInfo: $showingCloudKitInfo
+    )
+    .environmentObject(CloudKitStatus())
+    .background(Theme().backgroundColor)
+}
+
+#Preview("Yesterday's Challenge") {
+    @Previewable @State var showingNewGamePicker = false
+    @Previewable @State var showHistory = false
+    @Previewable @State var showingStats = false
+    @Previewable @State var showingSettings = false
+    @Previewable @State var showingAbout = false
+    @Previewable @State var showingErrorCheckingToast = false
+    @Previewable @State var showingCloudKitInfo = false
+    
+    return {
+        let game = SudokuGame()
+        game.currentDifficulty = .medium
+        game.isDailyChallenge = true
+        game.elapsedTime = 780 // 13:00
+        // Set yesterday's date
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        game.dailyChallengeDate = DailyChallenge.getDateString(for: yesterday)
+        game.initialBoard[0][0] = 5
+        game.hasInProgressGame = true
+        
+        return HeaderView(
+            game: game,
+            theme: Theme(),
+            showingNewGamePicker: $showingNewGamePicker,
+            showingHistory: $showHistory,
+            showingStats: $showingStats,
+            showingSettings: $showingSettings,
+            showingAbout: $showingAbout,
+            showingErrorCheckingToast: $showingErrorCheckingToast,
+            showingCloudKitInfo: $showingCloudKitInfo
+        )
+        .environmentObject(CloudKitStatus())
+        .background(Theme().backgroundColor)
+    }()
+}
+#Preview("Past Challenge") {
+    @Previewable @State var showingNewGamePicker = false
+    @Previewable @State var showHistory = false
+    @Previewable @State var showingStats = false
+    @Previewable @State var showingSettings = false
+    @Previewable @State var showingAbout = false
+    @Previewable @State var showingErrorCheckingToast = false
+    @Previewable @State var showingCloudKitInfo = false
+    
+    return {
+        let game = SudokuGame()
+        game.currentDifficulty = .easy
+        game.isDailyChallenge = true
+        game.elapsedTime = 320 // 5:20
+        // Set a date from a week ago
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date())!
+        game.dailyChallengeDate = DailyChallenge.getDateString(for: weekAgo)
+        game.initialBoard[0][0] = 5
+        game.hasInProgressGame = true
+        
+        return HeaderView(
+            game: game,
+            theme: Theme(),
+            showingNewGamePicker: $showingNewGamePicker,
+            showingHistory: $showHistory,
+            showingStats: $showingStats,
+            showingSettings: $showingSettings,
+            showingAbout: $showingAbout,
+            showingErrorCheckingToast: $showingErrorCheckingToast,
+            showingCloudKitInfo: $showingCloudKitInfo
+        )
+        .environmentObject(CloudKitStatus())
+        .background(Theme().backgroundColor)
+    }()
+}
+

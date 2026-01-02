@@ -19,24 +19,30 @@ struct FooterView: View {
     /// The current theme for styling.
     let theme: Theme
     
+    /// Binding to control showing the new game picker.
+    @Binding var showingNewGamePicker: Bool
+    
     var body: some View {
-        if !game.isComplete {
-            VStack {
+        VStack {
+            if (!game.isComplete) {
                 // Input controls (Pen/Notes/Undo/Redo) - always above number pad
                 InputControls(game: game, theme: theme)
-                
+
                 // Number Pad
-                NumberPad(game: game)
-                
-                // Mistakes and Timer, always reserve space for it
-                HStack(spacing: 16) {
-                    MistakesCounter(game: game, theme: theme)
-                    Spacer()
+                NumberPad(game: game, showingNewGamePicker: $showingNewGamePicker)
+            }
+
+
+            // Mistakes and Timer, always reserve space for it
+            HStack(spacing: 16) {
+                MistakesCounter(game: game, theme: theme)
+                Spacer()
+                if !game.isComplete {
                     TimerButtonView(game: game, theme: theme)
                 }
-                .padding(.horizontal)
-                .frame(maxWidth: 600, minHeight: 36)  // Limit to portrait-like width
             }
+            .padding(.horizontal)
+            .frame(maxWidth: 600, minHeight: 36)  // Limit to portrait-like width
         }
     }
 }

@@ -25,7 +25,8 @@ struct StartTodaysChallengeAlert: ViewModifier {
                         onStartToday()
                     },
                     secondaryButton: .cancel(Text("Continue Anyway")) {
-                        game.postLoadSetup()
+                        // Game was already loaded, timer already started if not paused
+                        // User just chose to continue playing the expired challenge
                     }
                 )
             }

@@ -13,17 +13,55 @@ struct SudokuBoard: View {
     /// Binding to control the new game picker sheet.
     @Binding var showingNewGamePicker: Bool
     
+    /// The current theme for styling.
+    @Environment(\.theme) var theme
+    
+    /// The current color scheme.
+    @Environment(\.colorScheme) var colorScheme
+
+    var isDarkMode: Bool {
+        colorScheme == .dark || theme.colorScheme == .dark
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let boardSize = min(geometry.size.width, geometry.size.height)
             let cellSize = boardSize / 9
             
             ZStack {
+                // Glow background layer (dark mode only)
+                if isDarkMode {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(theme.cellBackgroundColor)
+                        .frame(width: boardSize, height: boardSize)
+                        .shadow(color: theme.primaryAccent.opacity(0.4), radius: 12, x: 0, y: 0)
+                        .shadow(color: theme.primaryAccent.opacity(0.2), radius: 24, x: 0, y: 0)
+                        .shadow(color: theme.primaryAccent.opacity(0.1), radius: 40, x: 0, y: 0)
+                }
+
+                // Solid background to block glow bleed-through
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(theme.cellBackgroundColor)
+                    .frame(width: boardSize, height: boardSize)
+
                 // The actual board
                 boardGrid(cellSize: cellSize)
                     .frame(width: boardSize, height: boardSize)
                     .opacity(game.isGenerating ? 0.5 : 1.0)
-                
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 1)
+                            .stroke(.black, lineWidth: 6)
+                            .cornerRadius(3)
+                            .offset()
+                            .frame(width: boardSize + 9, height: boardSize + 9)
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 1)
+                            .stroke(theme.primaryAccent.opacity(isDarkMode ? 1 : 1), lineWidth: 2)
+                            .offset(x: 0, y: 0)
+                            .frame(width: boardSize + 3, height: boardSize + 3)
+                    }
+
                 // Overlays in separate layer to avoid clipping
                 if game.isPaused {
                     PauseOverlay(game: game)
@@ -50,6 +88,11 @@ struct SudokuBoard: View {
             ForEach(0..<SudokuGame.size, id: \.self) { row in
                 HStack(spacing: 0) {
                     ForEach(0..<SudokuGame.size, id: \.self) { col in
+                        let isTopLeft = row == 0 && col == 0
+                        let isTopRight = row == 0 && col == SudokuGame.size - 1
+                        let isBottomLeft = row == SudokuGame.size - 1 && col == 0
+                        let isBottomRight = row == SudokuGame.size - 1 && col == SudokuGame.size - 1
+                        
                         SudokuCell(
                             value: game.board[row][col],
                             cellNotes: game.notes[row][col],
@@ -74,7 +117,14 @@ struct SudokuBoard: View {
                             }
                         )
                         .frame(width: cellSize, height: cellSize)
-                        .clipped()
+                        .clipShape(
+                            .rect(
+                                topLeadingRadius: isTopLeft ? 0 : 0,
+                                bottomLeadingRadius: isBottomLeft ? 8 : 0,
+                                bottomTrailingRadius: isBottomRight ? 8 : 0,
+                                topTrailingRadius: isTopRight ? 8 : 0
+                            )
+                        )
                         .border(
                             width: BorderWidths(
                                 leading: col % 3 == 0 ? 2 : 0.5,
@@ -89,4 +139,36 @@ struct SudokuBoard: View {
             }
         }
     }
+}
+
+#Preview("Active Game - Blossom Theme - Dark") {
+    @Previewable @State var showingNewGamePicker = false
+    let game = SudokuGame()
+    
+    SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
+        .environment(\.theme, Theme(type: .blossom, colorScheme: .dark))
+        .preferredColorScheme(.dark)
+        .onAppear {
+            // Start a new easy game for preview
+            game.generatePuzzle(difficulty: .easy)
+            // Select a cell to show selection state
+            game.selectedCell = (4, 4)
+            game.highlightedNumber = game.board[4][4]
+        }
+}
+
+#Preview("Active Game - Blossom Theme - Light") {
+    @Previewable @State var showingNewGamePicker = false
+    let game = SudokuGame()
+
+    SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
+        .environment(\.theme, Theme(type: .blossom, colorScheme: .light))
+        .preferredColorScheme(.dark)
+        .onAppear {
+            // Start a new easy game for preview
+            game.generatePuzzle(difficulty: .easy)
+            // Select a cell to show selection state
+            game.selectedCell = (4, 4)
+            game.highlightedNumber = game.board[4][4]
+        }
 }

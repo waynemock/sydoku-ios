@@ -14,33 +14,44 @@ extension View {
     /// - Returns: A view with custom borders applied.
     func border(width: BorderWidths, color: Color) -> some View {
         self
-            .overlay(
+            .overlay(alignment: .top) {
                 Rectangle()
                     .stroke(color, lineWidth: width.top)
                     .frame(height: width.top)
-                    .offset(y: -width.top/2),
-                alignment: .top
-            )
-            .overlay(
+                    .offset(y: -width.top/2)
+            }
+            .overlay(alignment: .bottom) {
                 Rectangle()
                     .stroke(color, lineWidth: width.bottom)
                     .frame(height: width.bottom)
-                    .offset(y: width.bottom/2),
-                alignment: .bottom
-            )
-            .overlay(
+                    .offset(y: width.bottom/2)
+            }
+            .overlay(alignment: .leading) {
                 Rectangle()
                     .stroke(color, lineWidth: width.leading)
                     .frame(width: width.leading)
-                    .offset(x: -width.leading/2),
-                alignment: .leading
-            )
-            .overlay(
-                Rectangle()
-                    .stroke(color, lineWidth: width.trailing)
-                    .frame(width: width.trailing)
-                    .offset(x: width.trailing/2),
-                alignment: .trailing
-            )
+                    .offset(x: -width.leading/2)
+            }
+            .overlay(alignment: .trailing) {
+                    Rectangle()
+                        .stroke(color, lineWidth: width.trailing)
+                        .frame(width: width.trailing)
+                        .offset(x: width.trailing/2)
+            }
+
+    }
+
+    /// Conditionally applies a modifier to a view.
+    /// - Parameters:
+    ///   - condition: The condition to evaluate.
+    ///   - transform: The transform to apply if the condition is true.
+    /// - Returns: The modified view if condition is true, otherwise the original view.
+    @ViewBuilder
+    func `if`<Content: View>(_ condition: Bool, transform: (Self) -> Content) -> some View {
+        if condition {
+            transform(self)
+        } else {
+            self
+        }
     }
 }

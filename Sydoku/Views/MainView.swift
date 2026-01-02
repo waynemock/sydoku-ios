@@ -84,9 +84,8 @@ struct MainView: View {
                         if game.hasInProgressGame {
                             if game.isDailyChallengeExpired {
                                 showingExpiredDailyAlert = true
-                            } else {
-                                game.postLoadSetup()
                             }
+                            // Timer already started by loadGame() if game is not paused
                         } else {
                             showingNewGamePicker = true
                         }
@@ -117,10 +116,8 @@ struct MainView: View {
                         // Check if it's an expired daily challenge
                         if game.isDailyChallengeExpired {
                             showingExpiredDailyAlert = true
-                        } else {
-                            // Automatically load the saved game (no alert needed)
-                            game.postLoadSetup()
                         }
+                        // Timer already started by loadGame() during sync if game is not paused
                     } else {
                         // No saved game - show the new game picker so user can choose difficulty
                         showingNewGamePicker = true
@@ -194,7 +191,7 @@ struct MainView: View {
                 SudokuBoard(game: game, showingNewGamePicker: $showingNewGamePicker)
                 
                 // Footer with input controls, number pad and status indicators
-                FooterView(game: game, theme: theme)
+                FooterView(game: game, theme: theme, showingNewGamePicker: $showingNewGamePicker)
                 
                 Spacer()
             }
@@ -203,7 +200,6 @@ struct MainView: View {
             // Confetti overlay
             if game.showConfetti {
                 ConfettiView()
-                    .allowsHitTesting(false)
             }
         }
         .toast(isPresented: $showingErrorCheckingToast, edge: .bottom) {
@@ -211,8 +207,12 @@ struct MainView: View {
         }
         .environment(\.theme, theme)
         .sheet(isPresented: $showingHistory) {
-            GameHistoryView()
-                .environment(\.theme, theme)
+            GameHistoryView(onResumeGame: { selectedGame in
+                loadGame(from: selectedGame)
+            }, onViewGame: { selectedGame in
+                loadGame(from: selectedGame)
+            })
+            .environment(\.theme, theme)
         }
         .sheet(isPresented: $showingStats) {
             StatisticsView(game: game)
@@ -240,36 +240,36 @@ struct MainView: View {
                 showingNewGamePicker = true
             }
         )
-        .newGamePicker(isPresented: $showingNewGamePicker, game: game, theme: theme)
+        .newGamePicker(isPresented: $showingNewGamePicker, game: game, showingHistory: $showingHistory, theme: theme)
         .onChange(of: game.hasInProgressGame) { _, hasInProgressGame in
-            // If a saved game is detected (e.g., from iCloud sync), dismiss the new game picker
+            // If a saved game is detected (e.g., from iCloud sync)
             if hasInProgressGame {
-                showingNewGamePicker = false
-                // Load the saved game if not already loaded
-                if !game.isDailyChallengeExpired && game.board.allSatisfy({ $0.allSatisfy({ $0 == 0 }) }) {
-                    game.postLoadSetup()
+                // Only dismiss the new game picker if the board actually has content
+                if game.hasBoardBeenGenerated {
+                    showingNewGamePicker = false
+                    // Timer already started by loadGame() if game is not paused
+                }
+            } else {
+                // No game in progress - show the new game picker if board is empty
+                if !game.hasBoardBeenGenerated {
+                    showingNewGamePicker = true
                 }
             }
         }
+        .onChange(of: showingHistory) { _, isShowing in
+            game.toggleTimer(paused: isShowing)
+        }
         .onChange(of: showingStats) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
-                game.startTimer()
-            }
+            game.toggleTimer(paused: isShowing)
         }
         .onChange(of: showingSettings) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
-                game.startTimer()
-            }
+            game.toggleTimer(paused: isShowing)
         }
         .onChange(of: showingAbout) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
-                game.startTimer()
-            }
+            game.toggleTimer(paused: isShowing)
         }
         .onChange(of: showingCloudKitInfo) { _, isShowing in
-            if !isShowing && !game.isComplete && !game.isMistakeLimitReached {
-                game.startTimer()
-            }
+            game.toggleTimer(paused: isShowing)
         }
     }
     
@@ -278,7 +278,13 @@ struct MainView: View {
         let colorScheme = game.settings.preferredColorScheme.toColorScheme(system: systemColorScheme)
         theme = Theme(type: game.settings.themeType, colorScheme: colorScheme)
     }
-    
+
+    /// Loads a game
+    private func loadGame(from aGame: Game) {
+        // Load the selected game using the helper function
+        game.loadGame(from: aGame)
+    }
+
     /// Performs a CloudKit sync with timeout and loading UI.
     private func performSync() async {
         // Show loading overlay
